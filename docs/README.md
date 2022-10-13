@@ -1,0 +1,3 @@
+# TeachMyselfComputerScience
+
+> An awesome project.
