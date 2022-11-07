@@ -3,3 +3,4 @@
   - [Hello, world of concurrency in C++](/CppConcurrency/ch01/)
   - [Managing threads](/CppConcurrency/ch02/)
   - [Sharing data between threads](/CppConcurrency/ch03/)
+  - [Synchronizing concurrent operations](/CppConcurrency/ch04/)
