@@ -1,3 +1,4 @@
 - [Home](/)
 - [C++ Concurrency](/CppConcurrency/)
 - [Synchronizing concurrent operations](/CppConcurrency/ch04/)
+  - [Waiting for an event or other condition](/CppConcurrency/ch04/01-Waiting-for-an-event-or-other-condition.md)
