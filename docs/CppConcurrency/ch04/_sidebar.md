@@ -2,3 +2,4 @@
 - [C++ Concurrency](/CppConcurrency/)
 - [Synchronizing concurrent operations](/CppConcurrency/ch04/)
   - [Waiting for an event or other condition](/CppConcurrency/ch04/01-Waiting-for-an-event-or-other-condition.md)
+  - [Waiting for one-off event with futures](/CppConcurrency/ch04/02-Waiting-for-one-off-events-with-futures.md)
