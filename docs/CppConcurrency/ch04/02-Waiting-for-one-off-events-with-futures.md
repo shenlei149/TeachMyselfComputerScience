@@ -143,8 +143,89 @@ GUI 线程轮询是否收到了关闭的信号，如果没有，就尝试从任�
 ###  Making (std::)promises
 当一个服务需要处理很多连接时，一个做法是一个线程处理一个连接，好处是简单易懂。当连接很少的时候没有问题，但是连接很多的时候会产生大量的线程消耗资源，同时需要调度和上下文切换，甚至在达到网络上限之前就消耗光了 OS 的资源。所以需要很少的线程（可能只有一个）来处理连接，即一个线程需要处理很多连接。本质上就是要接受网络包或者发送网络包。
 
-`std::promise<T>`
+`std::promise<T>`提供了一种设置值的方式，可以通过与之关联的`std::future<T>`读结果。`std::promise/std::future`提供了一种机制：等待线程阻塞在`future`，另一个线程通过设置值使`future`状态`ready`。
+
+通过调用`std::promise<T>`的`get_future()`成员函数可以得到与之关联的`std::future<T>`对象。如果没有设置值就销毁`std::promise`对象，会存储一个异常。下个小节会讨论。
+
+下面是一个简单的处理上述连接的例子。`std::promise<bool>/std::future<bool>`表示要发送的数据是否发送完，对于进来的数据，`future`保存的是数据包的负载（`payload`）。
+```c++
+#include <future>
+void process_connections(connection_set &connections)
+{
+    while (!done(connections))
+    {
+        for (connection_iterator
+                 connection = connections.begin(),
+                 end = connections.end();
+             connection != end;
+             ++connection)
+        {
+            if (connection->has_incoming_data())
+            {
+                data_packet data = connection->incoming();
+                std::promise<payload_type> &p =
+                    connection->get_promise(data.id);
+                p.set_value(data.payload);
+            }
+
+            if (connection->has_outgoing_data())
+            {
+                outgoing_packet data =
+                    connection->top_of_outgoing_queue();
+                connection->send(data.payload);
+                data.promise.set_value(true);
+            }
+        }
+    }
+}
+```
+`process_connections()`循环到`done()`返回`true`。每次循环，检查对于每一个连接而言，是否有数据进来，然后接着发送数据。这个例子假定数据包中有一个 ID，查找与之关联的`promise`，然后设置值。发送也是类似的。
 
 ### Saving an exception for the future
+下面是求平方函数。如果传入 -1，会抛出异常。
+```c++
+double square_root(double x)
+{
+    if (x < 0)
+    {
+        throw std::out_of_range(“x < 0”);
+    }
+    return sqrt(x);
+}
+```
+我们可以在当前线程同步调用
+```c++
+double y = square_root(-1);
+```
+也可以异步使用
+```c++
+std::future<double> f = std::async(square_root, -1);
+double y = f.get();
+```
+两者调用结果应该是一样的，要么获得一个值，要么有一个异常。
+
+这确实是实际行为。如果传入`std::async`的函数抛出异常，那么这个异常会被存起来，并且`future`状态为`ready`，当调用`get()`时，会重抛该异常。`std::packaged_task`也是类似的行为。
+
+`std::promise`除了上述行为外，使用`set_exception()`可以主动设置异常。一个常用的方法是在某个算法出错时使用。
+```c++
+extern std::promise<double> some_promise;
+try
+{
+    // do something...
+    some_promise.set_value(calculate_value());
+}
+catch (...)
+{
+    some_promise.set_exception(std::current_exception());
+}
+```
+这里使用`std::current_exception()`来恢复抛出的异常。我们也可以使用`std::make_exception_ptr()`来创建一个新的异常而不抛出
+```c++
+some_promise.set_exception(std::make_exception_ptr(std::logic_error("foo ")));
+```
+另一种`future`会存一个异常的情况是没有调用与之关联的函数就销毁了`std::promise`或`std::packaged_task`对象。如果`future`的状态不是`ready`，它们的析构函数会创建一个错误码为`std::future_errc::broken_promise`的`std::future_error`异常。如果编译器不做这个事情，等待的线程可能会永远的等待下去。
 
 ### Waiting from multiple threads
+`std::future`被用于在两个线程之间同步数据，但是调用其成员函数不是同步的。如果多个线程访问同一个`std::future`实例，也会有竞争问题。如果多个线程调用`get()`，只有一个会得到值。
+
+如果多个线程需要访问同一个`future`，可以使用`std::shared_future`。相比`std::future`仅能移动，`std::shared_future`是可以拷贝的。
