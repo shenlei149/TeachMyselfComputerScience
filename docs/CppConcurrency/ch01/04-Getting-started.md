@@ -2,7 +2,7 @@
 
 ### Hello, Concurrent World
 从改写经典的Hello World程序开始：
-```c++
+```cpp
 #include <iostream>
 int main()
 {
@@ -10,7 +10,7 @@ int main()
 }
 ```
 使用不同的线程来输出信息：
-```c++
+```cpp
 #include <iostream>
 #include <thread>
 

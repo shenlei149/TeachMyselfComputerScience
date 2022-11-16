@@ -1,7 +1,7 @@
 C++ STL 提供了`std::thread::hardware_concurrency()`接口，返回一个标示（`indication`），表示能够真正并发多少线程运行。多核系统可能会返回 CPU 核数。如果这个信息不可用，也可能返回零。不管怎样，可以用这个标示来指导分割任务。
 
 下面是一个并行`std::accumulate`的简单实现。现实中应该使用第十章介绍的`std::reduce`而不是自己实现一个，这里是为了解释基本概念。每个线程会至少分配一定的元素，避免创建过多的线程。这里假设不会有异常，实际上`std::thread`的构造可能会失败，第八章详细介绍异常的处理。
-```c++
+```cpp
 template <typename Iterator, typename T>
 struct accumulate_block
 {

@@ -1,7 +1,7 @@
 有时我们需要创建一个线程执行后台任务，但是创建线程的函数不等待线程执行完成而是把线程的所有权给调用者；或者相反，创建一个线程，然后把所有权给某个函数。这就涉及到线程的所有权转移。
 
 `std::thread`对移动的支持就是为了解决这个问题。执行线程的所有权可以在不同`std::thread`对象之间转移。下面的例子就创建了两个线程和三个`std::thread`对象。
-```c++
+```cpp
 void some_function();
 void some_other_function();
 std::thread t1(some_function);
@@ -20,7 +20,7 @@ t1 = std::move(t3);
 最后，把运行`some_function`的线程的所有权转移回`t1`。但是`t1`已经关联一个线程了，那么会调用线程的析构函数，但是此线程没有`join()`或者`detach()`，那么析构函数会调用`std::terminate()`终止程序。赋值新的线程对象会导致丢弃旧的线程对象。
 
 `std::thread`对移动的支持意味着我们可以轻松的把线程所有权转移出函数。
-```c++
+```cpp
 std::thread f()
 {
     void some_function();
@@ -35,7 +35,7 @@ std::thread g()
 }
 ```
 类似的，如果一个函数接受`std::thread`示例作为参数，那么我们可以转移所有权到函数内。
-```c++
+```cpp
 void f(std::thread t);
 void g()
 {
@@ -46,7 +46,7 @@ void g()
 }
 ```
 `std::thread`所有权可以转移使得我们可以转移线程所有权到`thread_guard`类内部，以免发生任何不期待的行为，因为外部没有人能够`join()`或者`detach()`这个线程了。我们重写一个类似的`scoped_thread`类，目标是在退出某个范围前线程完成。
-```c++
+```cpp
 class scoped_thread
 {
     std::thread t;
@@ -79,7 +79,7 @@ void f()
 和之前类似，不过新的线程对象直接接受新线程的所有权。当到`f`执行完的时候，`t`会被销毁，这时在析构函数中`join()`。`thread_guard`是在析构函数中检查`joinable()`，这里修改成了在构造函数里面检查。
 
 C++17 有一个提案，`joining_thread`，当线程析构时自动`join()`，和上面的代码很类似，不过委员会未能达成共识。不过C++20 的时候，`std::jthread`是标准的一部分了。实现类似下面的代码。
-```c++
+```cpp
 class joining_thread
 {
     std::thread t;
@@ -159,7 +159,7 @@ public:
 };
 ```
 `std::thread`的移动支持使得支持移动操作的容器（比如`std::vector<>`）可以放`std::thread`对象。可以像下面的例子一样生成一堆线程放到容易内然后等待它们结束。
-```c++
+```cpp
 void do_work(unsigned id);
 void f()
 {

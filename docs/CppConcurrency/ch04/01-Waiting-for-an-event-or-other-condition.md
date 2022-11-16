@@ -1,7 +1,7 @@
 有几种方式实现一个线程等待另一个线程完成工作这种场景。第一种是等待线程通过不停的轮询共享变量（通过互斥保护）来得知这个事情，工作线程一旦完成了，就设置这个变量。这有两个方面的浪费：第一个等待线程不停的轮询，浪费资源，可能使得工作线程工作的更慢；如果正在轮询（加了锁），那么工作线程将不得不等待等待线程释放之后再获得锁修改变量。
 
 第二种方式是利用`std::this_thread::sleep_for()`等待一段时间再轮询。
-```c++
+```cpp
 bool flag;
 std::mutex m;
 void wait_for_flag()
@@ -25,7 +25,7 @@ void wait_for_flag()
 C++标准库提供的条件变量有两个：`std::condition_variable`和`std::condition_variable_any`。后者更通用，需要的仅是`metux-like`对象即可，有潜在的附加开销，如果没有额外需要，使用`std::condition_variable`即可。
 
 下面的示例展示了如何使用条件变量。
-```c++
+```cpp
 std::mutex mut;
 std::queue<data_chunk> data_queue;
 std::condition_variable data_cond;
@@ -71,7 +71,7 @@ void data_processing_thread()
 上面的例子中我们传递了一个 lambda 表达式，传递一个函数也是可以的。如果已经有现成的函数了，那么无需包裹成 lambda 表达式。`wait()`被调用期间，可能会多次检查条件变量（重新获取锁），一旦条件是`true`，会立即返回。等待线程重新获取锁检查条件，但是没有响应唤醒的线程，那么是虚假唤醒（`spurious wake`）。虚假唤醒次数和频率是无法确定的，所以检查条件的函数最好没有副作用，因为副作用会出现若干次。
 
 `std::condition_variable::wait`是对忙等待的优化。一个非优化的实现可能就是一个简单的循环。
-```c++
+```cpp
 template <typename Predicate>
 void minimal_wait(std::unique_lock<std::mutex> &lk, Predicate pred)
 {
@@ -90,7 +90,7 @@ void minimal_wait(std::unique_lock<std::mutex> &lk, Predicate pred)
 
 ### Building a thread-safe queue with condition variables
 3.2 小节介绍了线程安全的栈，这里我们考虑设计一个队列。先看下C++标准库是怎么设计接口的。
-```c++
+```cpp
 template <class T, class Container = std::deque<T>>
 class queue
 {
@@ -120,7 +120,7 @@ public:
 };
 ```
 如果忽略构造函数、复制等无关函数，那么其他 APIs 可以分成三组。第一组是查询队列状态的，`empty()`和`size()`；第二组是获取队列元素`front()`和`back()`；第三组是修改队列，`push()`, `pop()`和`emplace()`。和栈类似，接口天生会引入竞争，所以我们需要把`front()`和`pop()`合并成一个接口。上个小节的例子中我们发现多线程使用队列往往是一个生产一个消费。这里我们提供两个`pop`的变种：`try_pop()`立即返回，告诉调用者是否取回了队列头的数据；`wait_and_pop()`阻塞式的，直到有数据再返回。下面是接口设计。
-```c++
+```cpp
 #include <memory>
 template <typename T>
 class threadsafe_queue
@@ -141,7 +141,7 @@ public:
 和栈的设计一样，我们简化了构造函数的设计。`try_pop()`两个重载略微不同，由调用者提供`T`的引用的版本可以利用返回值`bool`表明是否有数据，无参版本（返回智能指针）只能通过指针是否为`nullptr`来判断是否取回了值。
 
 这和上一个小节的生产者消费者是什么关系呢？我们把之前的代码拿过来实现`push()`和`wait_and_pop()`，并且给出用法示例。
-```c++
+```cpp
 #include <queue>
 #include <mutex>
 #include <condition_variable>
@@ -196,7 +196,7 @@ void data_processing_thread()
 这样，互斥和条件变量都被封装到了`threadsafe_queue`里面。
 
 至此，实现其他函数就成为相对容易的事情了。
-```c++
+```cpp
 #include <queue>
 #include <memory>
 #include <mutex>

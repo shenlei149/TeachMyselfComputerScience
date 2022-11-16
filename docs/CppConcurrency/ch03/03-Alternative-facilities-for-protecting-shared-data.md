@@ -4,7 +4,7 @@
 
 ### Protecting shared data during initialization
 假设需要某个共享数据，创建代价比较高，那么会延迟初始化（`Lazy initialization`）。对于单线程实现的方式是先看有没有这个资源，没有的话初始化再用。
-```c++
+```cpp
 std::shared_ptr<some_resource> resource_ptr;
 void foo()
 {
@@ -17,7 +17,7 @@ void foo()
 }
 ```
 假定共享数据本身能被安全的并发访问，那么上面的代码只需要保护初始化过程。下面是最质朴的改写方式。不过多个线程仍旧无法并发访问，因为每个线程必须等待互斥，检查是否完成了初始化。
-```c++
+```cpp
 std::shared_ptr<some_resource> resource_ptr;
 std::mutex resource_mutex;
 void foo()
@@ -33,7 +33,7 @@ void foo()
 }
 ```
 为了达到并行，很多人进行了改进，包括双重检验锁模式（`double-checked locking`）。先判断指针是否为空，如果为空，获取锁，然后再判断是否为空。因为在两次判断的间隙可能其他线程完成了初始化，所有要获取锁。
-```c++
+```cpp
 void undefined_behaviour_with_double_checked_locking()
 {
     if (!resource_ptr)
@@ -51,7 +51,7 @@ void undefined_behaviour_with_double_checked_locking()
 这种模式饱受诟病，因为可能发生恶性条件竞争。因为在保护外面读取指针，和锁内部创建对象之间并没有同步。这涉及指针本身和数据对象。即使当前线程能够看到其他线程写入对象，但是可能无法看见指向的对象，那么会在调用`do_something()`的时候发生未定义行为。C++标准将此定义为数据竞争（`data race`），需要防范。第五章会讨论内存模型，分析形成数据竞争的前因后果。
 
 C++标准委员会为此提供了`std::once_flag`和`std::call_once`来解决这个问题。所有线程都调用`std::call_once`函数，当函数返回后，指针初始化由其中一个线程完成并通过合适的同步机制使得每个线程可见。同步数据由`std::once_flag`实例存储，每个实例对应一次不同的初始化。相比显式的互斥，`std::call_once`开销更低。下面重写上面的例子。初始化需要一个函数完成，不过具备函数调用操作的类也可以轻松使用这种初始化方式。`std::call_once`可以和任意可执行对象一起工作。
-```c++
+```cpp
 std::shared_ptr<some_resource> resource_ptr;
 std::once_flag resource_flag;
 
@@ -67,7 +67,7 @@ void foo()
 }
 ```
 在这个例子中，是初始化某个命名空间下的对象。下面展示了如何使用该机制延迟初始化类的成员。
-```c++
+```cpp
 class X
 {
 private:
@@ -103,7 +103,7 @@ public:
 和`std::mutex`一样，`std::once_flag`既不能复制也不能移动。那么作为成员变量，必须有成员函数来初始化它们。
 
 如果使用`static`的局部变量，那么初始化过程和上面遇到的问题一样。C++标准规定第一次遇见静态数据的声明语句进行初始化。多个线程调用同一个函数，就有潜在的条件竞争的问题。C++11标准发布之前，很多编译器不能正确处理这个问题。可能不止一个线程认为自己是第一个访问的线程，进而进行初始化或者试图使用未完全初始化的对象。C++解决了这个问题。如果代码只需要一个全局实例，那么可以用下面的方式替换`std::call_once`。
-```c++
+```cpp
 class my_class;
 my_class &get_my_class_instance()
 {
@@ -121,7 +121,7 @@ C++17提供了`std::shared_mutex`和`std::shared_timed_mutex`（C++14新增的�
 第八章我们会看到使用这种互斥也不是灵丹妙药，性能取决于硬件以及读和写的负载。所以需要进行性能分析，已确定引入多线程的复杂性能带来性能提升。
 
 类似于`std::mutex`，这里使用`std::shared_mutex`保护数据。对于更新，可以使用`std::lock_guard<std::shared_mutex>`和`std::unique_lock<std::shared_mutex>`加锁，保持排他性。不需要更新的线程使用`std::shared_lock<std::shared_mutex>`获取共享锁，这个和`std::unique_lock`类似，RAII管理资源，不同的是允许多个线程获取共享锁。如果一个线程有了共享锁，那么排它锁需要等待其他线程释放锁；如果任意线程有了排它锁，其他线程无法获得共享锁或者排它锁。下面的例子是使用这些锁来实现 DNS 缓存场景。
-```c++
+```cpp
 #include <map>
 #include <string>
 #include <mutex>

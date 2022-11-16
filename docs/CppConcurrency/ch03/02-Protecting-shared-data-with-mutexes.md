@@ -6,7 +6,7 @@
 
 ### Using mutexes in C++
 `std::mutex`构造函数能得到互斥的实例，成员函数`lock()`和`unlock()`能够加锁和解锁。但是不推荐裸用，因为需要在所有路径确保解锁。线程库提供了`std::lock_guard`可以通过RAII确保资源释放：构造的时候加锁，析构的时候解锁。下面是保护双向链表的例子。
-```c++
+```cpp
 #include <list>
 #include <mutex>
 #include <algorithm>
@@ -26,11 +26,11 @@ bool list_contains(int value_to_find)
 `some_mutex`是保护`some_list`的。
 
 C++17 引入了模板类型推导，可以简化成
-```c++
+```cpp
 std::lock_guard guard(some_mutex);
 ```
 后续会看到C++17 提供了加强版本的`std::scoped_lock`，所以这里更应该写作
-```c++
+```cpp
 std::scoped_lock guard(some_mutex);
 ```
 这个例子用了全局变量，更好的做法是封装成类。两者在同一类中，清晰的表示谁保护谁，同时封装函数以增强保护。成员函数访问前先加锁，完成后解锁，以此保护共享数据。
@@ -39,7 +39,7 @@ std::scoped_lock guard(some_mutex);
 
 ### Structuring code for protecting shared data
 如果我们通过成员函数向外返回了被保护的共享数据的指针或者引用，那么保护就有漏洞了。幸好我们可以检查所有函数的返回类型。不过这远远不够，我们也不应该向在加锁范围内的函数传递共享数据的指针或者引用，因为你不知道被调用的函数会不会保存这个指针或者引用，之后在使用就会绕过保护。下面是代码示例
-```c++
+```cpp
 class some_data
 {
     int a;
@@ -87,7 +87,7 @@ void foo()
 回到前面删除双向链表某个节点的例子，我们需要给三个节点加锁（要删除的和两侧的相邻节点）。如果只保护当前节点，那么和没有使用互斥一样，条件竞争仍旧可能发生。如果一个操作涉及多个数据，最简单的方式就是给整个数据结构加锁。比如前面保护整个`list<int>`的例子。
 
 单一操作是安全的，不能保证不会遇到条件竞争。比如下面的例子，是C++ `std::stack`的适配器代码。即使我们遵循上一小节说的不要返回引用，修改`top()`的实现，并且每个函数都使用互斥保护内部数据，使用这些接口还是会遇到条件竞争。这是接口本身的问题。有互斥的版本会遇到，无锁编程的实现也会遇到。
-```c++
+```cpp
 template <typename T, typename Container = std::deque<T>>
 class stack
 {
@@ -117,7 +117,7 @@ public:
 问题在于`empty()`和`size()`结果不可行。尽管对于某个线程调用时返回值是正确的，但是函数一旦返回，其他线程就不会限制可以增删元素了。这样第一个线程的结果就不正确了。
 
 如果`stack`实例不共享，那么检查`empty()`之后调用`top()`是安全的。类似下面
-```c++
+```cpp
 stack<int> s;
 if (!s.empty())
 {
@@ -152,7 +152,7 @@ if (!s.empty())
 
 #### OPTION 1: PASS IN A REFERENCE
 外部传递一个引用来接受数据。
-```c++
+```cpp
 std::vector<int> result;
 some_stack.pop(result);
 ```
@@ -169,7 +169,7 @@ some_stack.pop(result);
 
 #### EXAMPLE DEFINITION OF A THREAD-SAFE STACK
 下面是栈容器类的定义，没有条件竞争的接口设计，`pop()`有两个重载，分别实现了1和3。
-```c++
+```cpp
 #include <exception>
 #include <memory>
 struct empty_stack : std::exception
@@ -190,7 +190,7 @@ public:
 };
 ```
 接口简化能够确保安全，还能限制容器的整体操作。赋值运算符被删除了，那么容器本身不能被赋值。如果容器元素能够复制，那么容器能被复制。空的栈上调用`pop()`会抛出`empty_stack`异常，即使调用`empty()`之后容器发生了变化也能正常工作。接口简化确保安全指的是能够确保互斥在整个操作上都是加锁的。下面是实现代码，包装了`std::stack<>`。
-```c++
+```cpp
 #include <exception>
 #include <memory>
 #include <mutex>
@@ -262,7 +262,7 @@ public:
 一个通用的做法是以相同的顺序加锁。但是有时做不到这一点。比如交换两个对象，需要锁住这两个对象，代码实现是先锁左参再锁有参。如果两个线程，调用该方法传入同样两个对象，但是传参顺序恰好相反，那么还是有可能死锁。
 
 C++ 提供了`std::lock`，可以同时锁住多个互斥而没有死锁风险。下面是交换操作的例子。
-```c++
+```cpp
 class some_big_object;
 void swap(some_big_object &lhs, some_big_object &rhs);
 class X
@@ -291,7 +291,7 @@ public:
 `std::lock`内部如果抛出异常，那么异常会传导出来。如果`std::lock`先给第一个互斥成功加锁，但是给第二个加锁的时候抛出异常，会释放第一个锁。保证了`all-or-nothing`的语义。
 
 C++17 提供了`std::scoped_lock<>`，等价于`std::lock_guard<>`，不过是变参模板，这样它自身就可以支持多个参数，即给多个互斥加锁。配合C++17 的模板参数推导，那么代码可以简化为
-```c++
+```cpp
 void swap(X &lhs, X &rhs)
 {
     if (&lhs == &rhs)
@@ -327,7 +327,7 @@ void swap(X &lhs, X &rhs)
 按层次划分的锁就是特定顺序加锁的特例，可以在运行时检查加锁操作是否按照预设的规则。我们把应用划分成若干层，明确每个互斥位于哪个层次。某个线程对低层次互斥加锁了，那么就不能对高层次互斥加锁。为每个互斥分配一个编号，并且记录一个线程加了哪些层次的互斥锁。这种模式很常见，但是C++ STL 没有提供支持，我们需要自己实现`hierarchical_mutex`。
 
 下面是使用`hierarchical_mutex`的示例。
-```c++
+```cpp
 hierarchical_mutex high_level_mutex(10000);
 hierarchical_mutex low_level_mutex(5000);
 hierarchical_mutex other_mutex(6000);
@@ -374,7 +374,7 @@ void thread_b()
 这个例子还演示了`std::lock_guard<>`和自定义互斥类型`hierarchical_mutex`联合使用。只需要实现`lock(),unlock(),try_lock()`三个函数就可以作为`std::lock_guard<>`模板类型使用。`try_lock()`函数和`lock()`类似，不过如果互斥已经加过锁了，那么直接返回`false`，不等待。`std::lock()`内部也是利用这个函数防范死锁。
 
 `hierarchical_mutex`使用了线程专属（`thread_local`）的局部变量来存储当前层次的编号。所有的互斥实例都能访问这个值，不过每个线程的这个值可能不同。这样，每个线程各自检查其自身行为。
-```c++
+```cpp
 class hierarchical_mutex
 {
     std::mutex internal_mutex;
@@ -447,7 +447,7 @@ thread_local unsigned long
 
 ### Flexible locking with std::unique_lock
 `std::unique_lock`相比`std::lock_guard`提供了更多的灵活性，不一定占用了与之关联的互斥。构造函数的第二个参数可以传入`std::adopt_lock`，让其管理锁，也可以传入`std::defer_lock`，保持未加锁的状态。我们可以延迟调用`std::unique_lock`的`lock()`方法，或者将`std::unique_lock`实例传入`std::lock()`加锁。我们可以改写之前的例子：
-```c++
+```cpp
 class some_big_object;
 void swap(some_big_object &lhs, some_big_object &rhs);
 class X
@@ -478,7 +478,7 @@ public:
 `std::unique_lock`不拥有与之关联的互斥，所有可以通过移动转移互斥的所有权。`std::unique_lock`也是一个可以移动但是不能复制的例子。
 
 一个有用的操作是允许函数加锁对应的互斥，然后转移给调用者，那么调用者可以使用同一个互斥的保护下进行后续操作。`get_lock()`加锁，准备数据，然后把锁返回给调用者继续处理数据。
-```c++
+```cpp
 std::unique_lock<std::mutex> get_lock()
 {
     extern std::mutex some_mutex;
@@ -505,7 +505,7 @@ void process_data()
 多线程中如果使用同一个资源，如何线程在非必要的线程之外加锁，就会增加等待时间。如果可能，只在访问共享数据的时候加锁，其他处理的时候不用锁保护，特别是耗时的I/O操作。
 
 这种情况就适合使用`std::unique_lock`，只在需要的地方加锁。
-```c++
+```cpp
 void get_and_process_data()
 {
     std::unique_lock<std::mutex> my_lock(the_mutex);
@@ -523,7 +523,7 @@ void get_and_process_data()
 一般地，我们只在所需的最短时间内加锁。除非必要，绝不加锁。
 
 之前交换数据的例子中，必须给两个对象加锁。如果是比较呢？比较对象是原生`int`类型呢？因为复制`int`开销很低，所以可以先加一个锁，复制出来，同样地再操作第二个对象，最后比较。这样，持有锁的时间更短，而且是分别加锁，竞争更小。代码如下
-```c++
+```cpp
 class Y
 {
 private:

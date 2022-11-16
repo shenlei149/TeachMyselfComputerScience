@@ -2,12 +2,12 @@
 
 ### Launching a thread
 构造`std::thread`对象就会启动一个线程。最简单的任务没有参数，也没有返回值，运行结束自行退出。任务也可以很复杂，比如接受一些参数，同时需要通过消息系统触发执行一些操作，线程退出也需要特殊的消息。不管任务简单还是复杂，启动线程总是从构造`std::thread`开始。
-```c++
+```cpp
 void do_some_work();
 std::thread my_thread(do_some_work);
 ```
 任何可执行类型都可以作为构造函数的参数。可以传递实现了函数调用操作的类的实例给`std::thread`构造函数。
-```c++
+```cpp
 class background_task
 {
 public:
@@ -23,16 +23,16 @@ std::thread my_thread(f);
 这种情况下，函数对象会被复制到线程对象的空间中然后执行。那么需要保证拷贝与原始对象行为等价，否则可能会出现非预期行为。
 
 另外一个需要注意的事情是"C++'s most vexing parse"。如果传递一个临时变量，语法可能和函数声明一样，那么编译器不会认为它是一个函数对象。比如
-```c++
+```cpp
 std::thread my_thread(background_task());
 ```
 声明了一个函数`my_thread`，返回值是`std::thread`对象，参数是一个函数指针，无参，返回值是一个`background_task`对象。可以增加一对小括号，或者使用统一初始化列表的方式。
-```c++
+```cpp
 std::thread my_thread((background_task()));
 std::thread my_thread{background_task()};
 ```
 一个避免上述问题的方法是使用 lambda 表达式，可以捕获局部变量以避免传递参数，前一个例子可以改写为
-```c++
+```cpp
 std::thread my_thread([]
                       {
     do_something();
@@ -44,7 +44,7 @@ std::thread my_thread([]
 如果放任新的线程运行，那么需要保证线程访问的数据在结束前都是有效的。这个问题和是否多线程无关，不过多线程程序中遇到生命周期问题的可能性更大。
 
 如果子线程持有主线程局部变量的引用或者指针，主线程退出，子线程还需要访问这些变量就会出问题。
-```c++
+```cpp
 struct func
 {
     int &i;
@@ -77,7 +77,7 @@ void oops()
 线程启动之后立即调用`detach()`是没有问题的。但是调用`join()`的时机需要谨慎考虑。如果在`join()`之前有异常抛出，那么就不会执行`join()`了。
 
 在程序不会由于异常的抛出就异常退出的情况下，如果在非异常路径上调用了`join()`，那么需要在异常发生的时候也能调用到`join()`。下面是一个示例
-```c++
+```cpp
 struct func;
 void f()
 {
@@ -97,7 +97,7 @@ void f()
 }
 ```
 使用`try/catch`块确保不管是异常或者正常结束函数`f`，在此之前线程`t`都能访问局部变量。这种方式略微繁琐一点。不管是由于访问局部变量还是其他原因，需要确保函数正常退出或者异常退出前线程完成，有简洁的方式做这个事情——RAII，把`join()`放到一个类的析构函数里面。
-```c++
+```cpp
 class thread_guard
 {
     std::thread &t;
@@ -139,7 +139,7 @@ void f()
 对应 UNIX 守护进程（`daemon process`）的概念，分离的线程称为守护进程（`daemon threads`）。这些线程和程序生命周期一样长，执行后台任务，比如清理缓存、监控文件变化等等。可以通过分离线程建立机制来确认线程是否完成任务，或者用于启动后不用管的任务。
 
 调用`detach()`分离线程之后，那么线程和`std::thread`对象不再有联系，也不再能`join`。
-```c++
+```cpp
 std::thread t(do_background_work);
 t.detach();
 assert(!t.joinable());
@@ -147,7 +147,7 @@ assert(!t.joinable());
 调用`detach()`条件和调用`join()`的条件一样，必须`t.joinable() `返回`true`，原因也是一样的，`std::thread`对象关联一个线程的时候才能`join()`或者`detach()`。
 
 考虑一个文本编辑程序，可以同时打开多个文件。UI 层面和内部实现都可以有多种选择。每打开一个文件，有一个独立的窗口，是一个独立的线程，都在一个应用进程里面。内部实现可以很直接简单，每个线程完全独立，代码是共用的，但是处理完全不同的数据，很适合使用分离线程。当对应的窗口关闭的时候，线程自己退出就好了。下面是代码示例
-```c++
+```cpp
 void edit_document(std::string const &filename)
 {
     open_document_and_display_gui(filename);
