@@ -232,3 +232,124 @@ Concurrency TS 在`std::experimental`命名空间提供了全新的`std::promise
 
 假设你运行一个任务会返回一个结果，`future`用于存放结果。你必须使用`wait()`等待结果（或者用`wait_for()`或`wait_until()`等待有限的时间），然后处理结果。这很不方便，你可能需要一个语义：任务完成了，你继续后续的事情吧。这就是 continuation 提供的能力。调用`future`成员函数`then()`传递 continuation——`fut.then(continuation)`。
 
+`std::experimental::future`也存储了一个值，不过一旦`continuation`消费之后，其他地方就不能再次消费了，这时旧的`future`状态不是合法的了，同时`then()`返回一个新的`future`，状态是合法的，保存了新的函数调用的结果。
+```cpp
+std::experimental::future<int> find_the_answer;
+auto fut = find_the_answer();
+auto fut2 = fut.then(find_the_question);
+assert(!fut.valid());
+assert(fut2.valid());
+```
+`find_the_question`会在原始`future` `ready`之后，在不确定的线程上运动。这使得线程池或者类库的实现更自由。这样的灵活性和之前提到的`future`是一样的。
+
+你不能给`continuation`提供参数，因为这都由类库设定好了，就是一个已经`ready`的`future`。如果前面的例子中，`find_the_answer`返回`int`类型，那么`find_the_answer`的参数就是`std::experimental::future<int>`。
+
+`continuation`最后获取存了一个值，或者是一个异常。如果`future`被隐式解引用以将值直接传递给`continuation`，那么将不得不决定如何处理异常，而通过将`future`传递给`continuation`，`continuation`就可以处理异常。一个简单的情况就是调用`fut.get()`获取一个值，或者`re-throw`异常到`continuation`函数外面。这和把函数传递给`std::async`是一致的。
+
+Concurrency TS 并没有要求实现对应的`std::async`，不过实现本身可能会提供一个。即使没有，自己实现一个也非常直接。使用`std::experimental::promise`获取`future`，开一个线程运行函数，返回之后设置结果或者异常。
+```cpp
+template <typename Func>
+std::experimental::future<decltype(std::declval<Func>()())>
+spawn_async(Func &&func)
+{
+    std::experimental::promise<
+        decltype(std::declval<Func>()())>
+        p;
+    auto res = p.get_future();
+    std::thread t(
+        [p = std::move(p), f = std::decay_t<Func>(func)]() mutable
+        {
+            try
+            {
+                p.set_value_at_thread_exit(f());
+            }
+            catch (...)
+            {
+                p.set_exception_at_thread_exit(std::current_exception());
+            }
+        });
+    t.detach();
+    return res;
+}
+```
+使用`set_value_at_thread_exit`和`set_exception_at_thread_exit`是为了`future`变成`ready`之间`thread_local`变量已经清理了。
+
+### Chaining continuations
+如果你有一系列的耗时的事情需要做，那么可以按序异步完成这些事情以释放当前线程或者其他线程。比如用户登录的时候，我们会先验证账户和密码，成功之后获取用户信息，取回数据之后开始更新 UI。下面是对应的代码。
+```cpp
+void process_login(std::string const &username, std::string const &password)
+{
+    try
+    {
+        user_id const id = backend.authenticate_user(username, password);
+        user_data const info_to_display = backend.request_current_info(id);
+        update_display(info_to_display);
+    }
+    catch (std::exception &e)
+    {
+        display_error(e);
+    }
+}
+```
+这个代码完全是顺序执行的，如果想不阻塞 UI 线程，应该怎么办呢？都放到`std::async`里面，不过这仍旧会阻塞线程，并且消耗资源来等待结果，同时，如果有很多这样任务，除了等待，做不了其他事情。
+```cpp
+std::future<void> process_login(
+    std::string const &username, std::string const &password)
+{
+    return std::async(std::launch::async, [=]()
+                      {
+                        try {
+                                user_id const id = backend.authenticate_user(username, password);
+                                user_data const info_to_display = backend.request_current_info(id);
+                                update_display(info_to_display);
+                            } catch (std::exception& e) {
+                                display_error(e);
+                            }
+                      });
+}
+```
+为了不阻塞这些线程，我们需要`continuation`来链式调用这些任务。下面的代码对上述任务这了拆分。
+```cpp
+std::experimental::future<void> process_login(
+    std::string const &username, std::string const &password)
+{
+    return spawn_async([=]()
+                       { return backend.authenticate_user(username, password); })
+        .then([](std::experimental::future<user_id> id)
+              { return backend.request_current_info(id.get()); })
+        .then([](std::experimental::future<user_data> info_to_display)
+              {
+                try {
+                    update_display(info_to_display.get());
+                } catch(std::exception& e) {
+                    display_error(e);
+                } });
+}
+```
+现在每一个`continuation`都有一个`std::experimental::future`作为唯一参数，通过`get()`获取结果。这样异常可以沿着链式传递，最后通过`info_to_display.get()`获取结果或者有异常，紧接着处理所有的异常，这样，代码就和最开始的顺序执行版本一样了。
+
+当函数调用服务端接口的时候，还是需要等待服务器端返回，那么当前线程还是会被阻塞。所以，我们需要调用异步版本的接口来解决这个问题。比如`backend.async_authenticate_user(username,password)`，不过这个函数返回的是`std::experimental::future<user_id>`而不是`user_id`。
+
+这并不会使得代码变得更复杂。`continuation`有一个叫做`future-unwrapping`的功能，如果`.then()`接受的参数返回类型已经是`future<some_type>`，那么其也会直接返回`future<some_type>`类型，而不是`future<future<some_value>>`。
+```cpp
+std::experimental::future<void> process_login(
+    std::string const &username, std::string const &password)
+{
+    return backend.async_authenticate_user(username, password)
+        .then([](std::experimental::future<user_id> id)
+              { return backend.async_request_current_info(id.get()); })
+        .then([](std::experimental::future<user_data> info_to_display)
+              {
+                try {
+                    update_display(info_to_display.get());
+                } catch(std::exception& e) {
+                    display_error(e);
+                } });
+}
+```
+这段代码除了用了 lambda 拆分了任务，看起来和最初的版本差距不大，不过这个版本完全是异步执行的。如果编译器支持泛型 lambda，那么使用 auto 能使代码简化不少。
+```cpp
+return backend.async_authenticate_user(username, password)
+    .then([](auto id)
+          { return backend.async_request_current_info(id.get()); });
+```
