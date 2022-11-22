@@ -353,3 +353,190 @@ return backend.async_authenticate_user(username, password)
     .then([](auto id)
           { return backend.async_request_current_info(id.get()); });
 ```
+这里使用了 lambda，原因是控制流和逻辑本身很简单，如果复杂的话，建议使用单独的函数。
+
+`std::experimental::shared_future`也支持`continuation`，类似`future`，`std::experimental::shared_future`支持多个`continuation`，它解决了多个线程都需要同一个`future`导致的数据竞争问题。它可以传递给多个`continuation`做参数。不过你没办法一下子把它传递给两个不同`continuation`，需要像下面这么做。
+```cpp
+auto fut = spawn_async(some_function).share();
+auto fut2 = fut.then([](std::experimental::shared_future<some_data> data)
+                     { do_stuff(data); });
+auto fut3 = fut.then([](std::experimental::shared_future<some_data> data)
+                     { return do_other_stuff(data); });
+```
+使用`share()`使得`fut`是`std::experimental::shared_future`类型，同样，`continuation`也接受`std::experimental::shared_future`类型的参数。`continuation`返回的是`std::experimental::future`，所以`fut2` `fut3`都是`std::experimental::future`类型，除非显式的`share()`它。
+
+### Waiting for more than one future
+有的时候有需要数据需要处理，为了充分利用硬件，会开多个线程进行计算，然后有一个线程负责收集各个结果做汇总。一种方式是这个线程忙等或者定期轮询其他`future`是否`ready`。
+```cpp
+std::future<FinalResult> process_data(std::vector<MyData> &vec)
+{
+    size_t const chunk_size = whatever;
+    std::vector<std::future<ChunkResult>> results;
+    for (auto begin = vec.begin(), end = vec.end(); beg != end;)
+    {
+        size_t const remaining_size = end - begin;
+        size_t const this_chunk_size = std::min(remaining_size, chunk_size);
+        results.push_back(
+            std::async(process_chunk, begin, begin + this_chunk_size));
+        begin += this_chunk_size;
+    }
+
+    return std::async([all_results = std::move(results)]()
+                      {
+                        std::vector<ChunkResult> v;
+                        v.reserve(all_results.size());
+                        for(auto& f: all_results)
+                        {
+                            // 由于需要等待每一个任务，这里会被唤醒多次
+                            // 添加结果，如果下一个没有`ready`会继续休眠
+                            // 同时导致多次上下文切换，增加了附加开销
+                            v.push_back(f.get());
+                        }
+
+                        return gather_results(v); });
+}
+```
+使用`std::experimental::when_all`可以避免这些问题。当所有的`future`都`ready`了，这个函数返回的`future`状态会变成`ready`。这个`future`可以传给`continuation`，所有任务都结束之后开始新的任务。
+```cpp
+std::experimental::future<FinalResult> process_data(
+    std::vector<MyData> &vec)
+{
+    size_t const chunk_size = whatever;
+    std::vector<std::experimental::future<ChunkResult>> results;
+    for (auto begin = vec.begin(), end = vec.end(); beg != end;)
+    {
+        size_t const remaining_size = end - begin;
+        size_t const this_chunk_size = std::min(remaining_size, chunk_size);
+        results.push_back(
+            spawn_async(
+                process_chunk, begin, begin + this_chunk_size));
+        begin += this_chunk_size;
+    }
+
+    return std::experimental::when_all(
+               results.begin(), results.end())
+        // 当 results 里面所有的 future 都 ready 之后
+        // 会开始执行 then 里面的代码
+        .then(
+            [](std::future<std::vector<
+                   std::experimental::future<ChunkResult>>>
+                   ready_results)
+            // 这里通过函数参数传递结果而不是使用 async 时捕捉变量
+            {
+                std::vector<std::experimental::future<ChunkResult>>
+                    all_results = ready_results.get();
+                std::vector<ChunkResult> v;
+                v.reserve(all_results.size());
+                for (auto &f : all_results)
+                {
+                    // 当执行到这里的时候，所有 future 都是 ready 的
+                    // 那么不会有任何阻塞，减少了潜在的系统负载
+                    v.push_back(f.get());
+                }
+
+                return gather_results(v);
+            });
+}
+```
+
+### Waiting for the first future in a set with when_any
+当搜索一个很大的数据集，想要的结果会出现多条，不过任意一个都是可以接受的结果。那么我们会启动多个线程搜索不相交的子集，如果一个线程找到了结果，那么就可以返回了，无需等待其他线程结束。
+
+`std::experimental::when_any`就是为了这个场景设计的，接受一些`future`，返回一个新的`future`，如果入参中的一个是`ready`了，那么新的`future`也就`ready`了。`when_all`是把传入的`future`包裹成一个集合，而`when_any`是添加了一个新的层次，把`future`集合和一个索引放到一次，索引的目的是告诉我们是哪一个`future`状态是`ready`。这就是模板类`std::experimental::when_any_result`的职责。
+```cpp
+std::experimental::future<FinalResult>
+find_and_process_value(std::vector<MyData> &data)
+{
+    unsigned const concurrency = std::thread::hardware_concurrency();
+    unsigned const num_tasks = (concurrency > 0) ? concurrency : 2;
+    std::vector<std::experimental::future<MyData *>> results;
+    auto const chunk_size = (data.size() + num_tasks - 1) / num_tasks;
+    auto chunk_begin = data.begin();
+    std::shared_ptr<std::atomic<bool>> done_flag =
+        std::make_shared<std::atomic<bool>>(false);
+
+    // 创建 num_tasks 个任务
+    for (unsigned i = 0; i < num_tasks; ++i)
+    {
+        auto chunk_end =
+            (i < (num_tasks - 1)) ? chunk_begin + chunk_size : data.end();
+
+        // = 意味着 lambda 表达式复制的方式捕获变量
+        // 每个任务有自己独立的 chunk_begin chunk_end
+        // 智能指针 done_flag 也是复制的，以防有生命周期的问题
+        results.push_back(spawn_async([=]
+                                      {
+                                        for (auto entry = chunk_begin;
+                                        !*done_flag && (entry != chunk_end);
+                                        ++entry) {
+                                            if (matches_find_criteria(*entry)) {
+                                                *done_flag = true;
+                                                return &*entry;
+                                            }
+                                        }
+                                        
+                                        return (MyData *)nullptr; }));
+
+        chunk_begin = chunk_end;
+    }
+
+    std::shared_ptr<std::experimental::promise<FinalResult>> final_result =
+        std::make_shared<std::experimental::promise<FinalResult>>();
+
+    // 我们实现成类的原因是需要递归调用
+    struct DoneCheck
+    {
+        std::shared_ptr<std::experimental::promise<FinalResult>>
+            final_result;
+
+        DoneCheck(
+            std::shared_ptr<std::experimental::promise<FinalResult>>
+                final_result_)
+            : final_result(std::move(final_result_)) {}
+
+        // 一旦有一个任务完成了，这个操作符会被调用
+        void operator()(
+            std::experimental::future<std::experimental::when_any_result<
+                std::vector<std::experimental::future<MyData *>>>>
+                results_param)
+        {
+            // 从 ready 的 future 里面取出结果
+            auto results = results_param.get();
+            MyData *const ready_result =
+                results.futures[results.index].get();
+
+            // 如果有结果开始处理
+            if (ready_result)
+                final_result->set_value(
+                    process_found_value(*ready_result));
+            else
+            {
+                // 否则，丢弃这个 future
+                results.futures.erase(
+                    results.futures.begin() + results.index);
+                if (!results.futures.empty())
+                {
+                    // 如果还有 future 需要检查，调用 when_any
+                    // 一旦新新的 future ready，这个函数还会被调用
+                    // 这里递归地用到这个类
+                    std::experimental::when_any(
+                        results.futures.begin(), results.futures.end())
+                        .then(std::move(*this));
+                }
+                else
+                {
+                    // 如果没有 future 需要检查了，说明没有得到结果，那么设置异常
+                    final_result->set_exception(
+                        std::make_exception_ptr(
+                            std::runtime_error("Not found")));
+                }
+            }
+        };
+
+        // when_any 等待任意一个任务返回
+        std::experimental::when_any(results.begin(), results.end())
+            .then(DoneCheck(final_result));
+        return final_result->get_future();
+    }
+}
+```

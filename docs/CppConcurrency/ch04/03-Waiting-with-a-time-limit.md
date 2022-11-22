@@ -63,9 +63,9 @@ if (f.wait_for(std::chrono::milliseconds(35)) == std::future_status::ready)
 auto start = std::chrono::high_resolution_clock::now();
 do_something();
 auto stop = std::chrono::high_resolution_clock::now();
-std::cout <<”do_something() took “
+std::cout <<"do_something() took "
           << std::chrono::duration<double, std::chrono::seconds>(stop - start).count()
-          <<” seconds” << std::endl;
+          <<" seconds" << std::endl;
 ```
 如果把时间点传递给`wait()`函数，时间点的时钟参数用于测量时间。时钟如果更改了，那么会影响程序行为，因为`wait`跟踪时钟的更新直到`now()`返回比指定之间更晚的值。如果时钟往前调整，会少等一会，反之会多等一会。
 
