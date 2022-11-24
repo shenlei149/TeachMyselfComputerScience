@@ -540,3 +540,103 @@ find_and_process_value(std::vector<MyData> &data)
     }
 }
 ```
+例子中的`when_all`和`when_any`都接受一对迭代器。不过它们也接受变参形式，可以直接传递一些参数进去。这种情况下，结果`future`持有的类型是`tuple`而不是`vector`。
+```cpp
+std::experimental::future<int> f1 = spawn_async(func1);
+std::experimental::future<std::string> f2 = spawn_async(func2);
+std::experimental::future<double> f3 = spawn_async(func3);
+std::experimental::future<
+    std::tuple<
+        std::experimental::future<int>,
+        std::experimental::future<std::string>,
+        std::experimental::future<double>>>
+    result =
+        std::experimental::when_all(std::move(f1), std::move(f2), std::move(f3));
+```
+这个例子也说明这两个函数会移动容器内的`std::experimental::future`对象，如果传递参数的话，需要显式的的`move()`或者传递临时变量。
+
+### Latches and barriers in the Concurrency TS
+先介绍`latch`和`barrier`这个概念。
+
+`latch`是一个同步对象，它的计数器变成零的时候状态变为`ready`。状态一旦`ready`之后，就总是`ready`的，直到被销毁。`latch`是等待一系列事件发生的轻量级设施。
+
+`barrier`是一个可重用的同步组件，用于一组线程内部同步使用。`latch`不关心谁把计数器减一了，一个线程可以减一多次，也可以多个线程都减一。对于`barrier`，在每个循环中，每个线程只能达到一次。当一个线程到了`barrier`，需要等待，直到所有的线程都达到。`barrier`能够重用，下一个循环，所有线程还是需要等待到这个点。
+
+###  A basic latch type: std::experimental::latch
+当创建一个`std::experimental::latch`实例的时候唯一能够指定的参数就是计数器初始值。当等待的事件发生的时候，调用`count_down`，当计数器值为零的时候`latch`的状态变为`ready`。调用`wait`等待`latch` `ready`；`is_ready`检查状态。如果事件发生时需要等待，那么可以调用`count_down_and_wait`。下面是一个使用的例子。
+```cpp
+void foo()
+{
+    unsigned const thread_count = ...;
+    // 构造 latch，参数是需要等待多少事件
+    latch done(thread_count);
+    my_data data[thread_count];
+    std::vector<std::future<void>> threads;
+    for (unsigned i = 0; i < thread_count; ++i)
+        // 构造任务，这里 data 和 done 是引用捕获，因为需要共享
+        // i 是值捕获，因为这是在 for 循环中，如果引用捕获会出现数据竞争
+        // 行为是不可预期的
+        threads.push_back(std::async(std::launch::async, [&, i]
+                                     {
+                                        data[i]=make_data(i);
+
+                                        // 生成好数据就可以减一了
+                                        done.count_down();
+
+                                        // 继续处理其他事情
+                                        do_more_stuff(); }));
+
+    // 主线程等待所有事件发生
+    done.wait();
+
+    // 开始处理数据，此时每一个线程都已经生成好了数据
+    process_data(data, thread_count);
+} // 函数返回时，不能确保每个任务线程都已经结束了它们的工作，此时 future 会被销毁
+```
+这个场景很适合用`latch`，因为我们只需要等待部分工作而不是每个线程完成它们的事情，反之，我们不得不等到所有的`future`是`ready`状态。
+
+`process_data`的时候，尽管数据是在其他线程生成的，在这里主线程也能够看到了。这是由`latch`机制保证的。第五章会讲解更底层的内存顺序和同步约束。
+
+### std::experimental::barrier: a basic barrier
+有两个类型的`barrier`，`std::experimental::barrier`和`std::experimental::flex_barrier`。前者更简单，潜在的开销也比较小，后者更灵活，潜在的开销也比较大。
+
+假设有一组线程操作一些数据。每一个线程能够独立的一部分数据，不需要同步，但是这些线程不得不等待所有处理结束，才能开始下一个阶段的工作。`barrier`就是为了这个场景设计的。我们可以通过指定同一组的线程数来构造`barrier`。调用成员函数`arrive_and_wait`表达当前线程已经完成工作，达到并且等待其他线程。当所有线程都达到之后，`barrier`被重置，所以线程被释放，可以继续其他工作。
+
+相比`latch`一旦`ready`之后就一直`ready`了，`barrier`不是这样的，释放线程之后就重置了，可以重用。`barrier`只是为了同步同一组的线程。线程可以通过`arrive_and_drop`等待并且退出，这一次它会达到并等待，但是下一次就不会了。所以下一次需要等待的线程数会少一个。
+```cpp
+result_chunk process(data_chunk);
+std::vector<data_chunk>
+divide_into_chunks(data_block data, unsigned num_threads);
+void process_data(data_source &source, data_sink &sink)
+{
+    unsigned const concurrency = std::thread::hardware_concurrency();
+    unsigned const num_threads = (concurrency > 0) ? concurrency : 2;
+    std::experimental::barrier sync(num_threads);
+    std::vector<joining_thread> threads(num_threads);
+    std::vector<data_chunk> chunks;
+    result_block result;
+    for (unsigned i = 0; i < num_threads; ++i)
+    {
+        threads[i] = joining_thread([&, i]
+                                    {
+            while (!source.done())
+            {
+                if (!i)
+                {
+                    data_block current_block =
+                        source.get_next_data_block();
+                    chunks = divide_into_chunks(current_block, num_threads);
+                }
+
+                sync.arrive_and_wait();
+                result.set_chunk(i, num_threads, process(chunks[i]));
+                sync.arrive_and_wait();
+                
+                if (!i)
+                {
+                    sink.write_data(std::move(result));
+                }
+            } });
+    }
+}
+```
