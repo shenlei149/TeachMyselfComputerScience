@@ -619,8 +619,10 @@ void process_data(data_source &source, data_sink &sink)
     {
         threads[i] = joining_thread([&, i]
                                     {
+            // 循环直至所有输入都处理完成
             while (!source.done())
             {
+                // thread 0 来切分任务
                 if (!i)
                 {
                     data_block current_block =
@@ -628,15 +630,79 @@ void process_data(data_source &source, data_sink &sink)
                     chunks = divide_into_chunks(current_block, num_threads);
                 }
 
+                // 所有线程等待任务切分完成
                 sync.arrive_and_wait();
+
+                // 每个线程开始处理自己的部分
                 result.set_chunk(i, num_threads, process(chunks[i]));
+
+                // 等待所有线程都处理完数据
                 sync.arrive_and_wait();
                 
+                // thread 0 写结果
                 if (!i)
                 {
                     sink.write_data(std::move(result));
                 }
             } });
     }
+}  // 退出时，joining_thread 的析构函数会自动 join
+```
+`arrive_and_wait`要求所有的线程都达到才会大家继续下去。第一次同步，除了 thread 0 之外都没事，直接进入等待；第二次同步，thread 0 可能需要等待其他线程达到以进行后续的操作。
+
+### std::experimental::flex_barrier - std::experimental::barrier's flexible friend
+`std::experimental::flex_barrier`的构造函数还可以额外传递一个函数。当所有线程都达到`barrier`，有且只有一个线程会执行函数。不仅仅能够达到同步的目的，还能修改下一轮必须达到的线程数，新的数字可以更高也可以更低。
+
+`std::experimental::flex_barrier`
+```cpp
+void process_data(data_source &source, data_sink &sink)
+{
+    unsigned const concurrency = std::thread::hardware_concurrency();
+    unsigned const num_threads = (concurrency > 0) ? concurrency : 2;
+
+    std::vector<data_chunk> chunks;
+
+    // 单独命名的 lambda，是为了重用
+    auto split_source = [&]
+    {
+        if (!source.done())
+        {
+            data_block current_block = source.get_next_data_block();
+            chunks = divide_into_chunks(current_block, num_threads);
+        }
+    };
+
+    // 开始之前需要先分割一次任务，不像之前由 thread 0 完成
+    split_source();
+
+    result_block result;
+
+    // 传入一个额外的函数，每次所有线程都达到的时候调用
+    std::experimental::flex_barrier sync(num_threads, [&]
+                                         { 
+                                            sink.write_data(std::move(result));
+                                            
+                                            // 相当于之前的 thread 0 的工作
+                                            // 这里就是重用 lambda split_source 的地方
+                                            split_source();
+
+                                            // 返回 -1 表示线程数保持不变
+                                            // 0 或者正数表示下一轮的线程数
+                                            return -1; });
+
+    std::vector<joining_thread> threads(num_threads);
+    for (unsigned i = 0; i < num_threads; ++i)
+    {
+        threads[i] = joining_thread([&, i]
+                                    {
+                                        // 主循环变得更简单了，只有和并行相关的代码
+                                        // 因此，一个同步点就够了
+                                        while (!source.done())
+                                        { 
+                                            result.set_chunk(i, num_threads, process(chunks[i]));
+                                            sync.arrive_and_wait();
+                                        } });
+    }
 }
 ```
+运行中改变线程数是很有用的。比如，流水线作业，初始阶段和结束阶段需要的线程少，而主要处理流程部分可能需要的线程多。
