@@ -4,3 +4,4 @@
   - [Managing threads](/CppConcurrency/ch02/)
   - [Sharing data between threads](/CppConcurrency/ch03/)
   - [Synchronizing concurrent operations](/CppConcurrency/ch04/)
+  - [The C++ memory model and operations on atomic types](/CppConcurrency/ch05/)
