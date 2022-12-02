@@ -165,3 +165,71 @@ b.compare_exchange_weak(expected, true, memory_order_acq_rel);
 `std::atomic<bool>`和`std::atomic_flag`还有一个不同是，前者不一定是`lock-free`的。如果这一点很重要，那么调用`is_lock_free()`检查一下。这一点对其他原子类型也适用。
 
 ### Operations on std::atomic<T*>: pointer arithmetic
+和`std::atomic<bool>`与`bool`的关系一样，且接口和语义也都一样。不能复制构造，不能赋值，但是可以用从非原子类型构造和赋值。有`is_lock_free()`,`load()`,`store()`,`exchange()`,`compare_exchange_weak()`,`compare_exchange_strong()`函数，只是参数和返回类型不同罢了。
+
+新提供了指针运算操作符。成员函数`fetch_add()`和`fetch_sub()`能够原子地移动指针位置，同时还提供了一些方便的操作符：`+=` `-=` `--` `++`。这些和裸指针的运算一样。两个成员函数稍有不同，返回的是原始地址。这两函数称为`exchange-and-add`操作，也属于读修改写操作。这些操作符返回的类型是裸指针`T*`而不是原子指针`std::atomic<T*>`对象的引用。
+```cpp
+class Foo
+{
+};
+
+Foo some_array[5];
+std::atomic<Foo *> p(some_array);
+Foo *x = p.fetch_add(2);
+assert(x == some_array);
+assert(p.load() == &some_array[2]);
+x = (p -= 1);
+assert(x == &some_array[1]);
+assert(p.load() == &some_array[1]);
+```
+成员函数可以额外指定内存顺序。比如
+```cpp
+p.fetch_add(3, std::memory_order_release);
+```
+`fetch_add()`和`fetch_sub()`都是读修改写的操作，所以任意顺序都可以，同时参与`release sequence`。操作符就不行了，没有地方提供这些信息，所以都是`memory_order_seq_cst`。
+
+###  Operations on standard atomic integral types
+首先，`load()`,`store()`,`exchange()`,`compare_exchange_weak()`,`compare_exchange_strong()`这些函数都是有的。其次，原子整数类型还支持`fetch_add()`,`fetch_sub()`,`fetch_and()`,`fetch_or()`,`fetch_xor()`,`+=`,`-=`,`&=`,`|=`,`^=`,`++x`,`x++`,`--x`,`x--`。除了没有乘除和移位操作，其他操作都是全的。一般这些类型往往用于计数器或者是`bitmask`，没有这些运算影响不大。需要的话`compare_exchange_weak()`可以容易的实现一个。
+
+和`std::atomic<T*>`语义近乎一样。成员函数返回旧值，复合赋值运算符返回新值。`++x`和`x++`也和非原子类型一样，前者返回新值，后者返回旧值。
+
+### The std::atomic<> primary class template
+这个模板可以帮助我们实现自定义的原子类型。给定一个自定义类型`UDT`，`std::atomic<UDT>`有和`std::atomic<bool>`一样的接口，除了参数类型和返回类型。不是任意类型都能原子化，需要满足一定的条件。不能有非普通的复制赋值操作符。不能有`virtual`函数，也不能有`virtual`基类，必须用编译器生成的赋值运算符。除此之外，非`static`成员变量也必须满足这个条件。由于不需要运行用户自定义的代码，这意味着编译器可以实用`memcpy()`或等价操作进行赋值。
+
+比较交换操作使用类似`memcmp`的二进制比较，而不是自定义的比较运算。如果自定义比较有不同语义，或者类中有填充的字节不参与比较，那么即使两个对象一样，比较交换操作也可能会失败。
+
+背后的原因是第三章提高的指导原则：不要将被保护数据的指针或者引用作为参数传递给用户写的函数使之超出锁的保护范围。一般情况下，编译器无法为`std::atomic<UDT>`生成`lock-free`的代码，那么内部会有一个锁，如果允许用户自定义比较和赋值操作，那么向这些函数传递引用，违反了这个原则。类库有只有一个锁保护所有原子操作的自由，持有锁的时候调用用户自定义的函数，可能会死锁，或者由于比较操作费时而导致其他线程被阻塞。最后，这些限制帮助编译器能够为`std::atomic<UDT>`生成原子指令，毕竟可以把对象当作一系列二进制。
+
+` std::atomic<float>`和`std::atomic<double>`是内置浮点类型，满足`memcpy`和`memcmp`的条件，不过使用`compare_exchange_strong`仍旧可能会有意外。如果存储的值有不同的表示，即使值是一样的，也有可能失败。要记得，对于浮点数没有原子算术操作。自定义的类型也可能有这种情况，`memcmp`和自定义的比较意义不同，相等的两个对象可能有不同的表示。
+
+如果`UDT`大小和`int`或`void*`一样大或者更小，那么大部分平台会使用原子指令。如果是两倍大小，部分平台也有原子指令，对应`compare_exchange_xxx`的指令称为`double-word-compare-and-swap`。第七章会讲解这对编写`lock-free`代码很有用。
+
+这些限制意味着你不能创建`std::atomic<std::vector<int>>`类型，不过可以用一些包括计数器、标记位、指针和简单数组的类实例化`std::atomic<>`。一般而言，越复杂的数据结构，往往无法使用简单的比较和赋值。这种情况，使用`mutex`来保护想要的操作。
+
+Operation atomic_
+flag
+atomic
+<bool>
+atomic
+<T*>
+atomic
+<integral-type>
+atomic
+<othertype>
+test_and_set Y
+clear Y
+is_lock_free Y Y YY
+load Y Y YY
+store Y Y YY
+exchange Y Y YY
+compare_exchange
+_weak, compare_ 
+exchange_strong
+Y Y YY
+fetch_add, += Y Y
+fetch_sub, -= Y Y
+fetch_or, |= Y
+fetch_and, &= Y
+fetch_xor, ^= Y
+++, -- Y Y
+
