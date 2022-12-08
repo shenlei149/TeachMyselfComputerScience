@@ -206,30 +206,45 @@ p.fetch_add(3, std::memory_order_release);
 
 这些限制意味着你不能创建`std::atomic<std::vector<int>>`类型，不过可以用一些包括计数器、标记位、指针和简单数组的类实例化`std::atomic<>`。一般而言，越复杂的数据结构，往往无法使用简单的比较和赋值。这种情况，使用`mutex`来保护想要的操作。
 
-Operation atomic_
-flag
-atomic
-<bool>
-atomic
-<T*>
-atomic
-<integral-type>
-atomic
-<othertype>
-test_and_set Y
-clear Y
-is_lock_free Y Y YY
-load Y Y YY
-store Y Y YY
-exchange Y Y YY
-compare_exchange
-_weak, compare_ 
-exchange_strong
-Y Y YY
-fetch_add, += Y Y
-fetch_sub, -= Y Y
-fetch_or, |= Y
-fetch_and, &= Y
-fetch_xor, ^= Y
-++, -- Y Y
+| Operation | `atomic_flag` | `atomic<bool>` | `atomic<T*>` | `atomic<integral-type>` |` atomic<othertype>` |
+|--|--|--|--|--|--|
+| `test_and_set` | Y | | | | |
+| `clear` | Y | | | | |
+| `is_lock_free` | | Y | Y | Y | Y |
+| `load` | | Y | Y | Y | Y |
+| `store` | | Y | Y | Y | Y |
+| `exchange` | | Y | Y | Y | Y |
+| `compare_exchange_weak`, `compare_exchange_strong` | | Y | Y | Y | Y |
+| `fetch_add`, `+=` | | | Y | Y | |
+| `fetch_sub`, `-=` | | | Y | Y | |
+| `fetch_or`, `\|=` | | | | Y | |
+| `fetch_and`, `&=` | | | | Y | |
+| `fetch_xor`, `^=` | | | | Y | |
+| `++,` `--` | | | Y | Y | |
 
+### Free functions for atomic operations
+之前介绍的都是成员函数，现在介绍非成员函数。这些函数以`atomic_`为前缀，这些函数对每一个原子类型都有重载。同时，有另外一组变种，以`_explicit`为后缀，可以传入内存顺序。比如`std::atomic_store(&atomic_var, new_value)`和`std::atomic_store_explicit(&atomic_var, new_value, std::memory_order_release)`。作为成员函数，隐式地接受原子类型对象的引用，这里第一个参数是指针类型。
+
+`std::atomic_is_lock_free(&a)`等价于`a.is_lock_free()`，`std::atomic_load(&a)`等价于`a.load()`，`a.load(std::memory_order_acquire)`等价于`std::atomic_load_explicit(&a, std::memory_order_acquire)`。
+
+非成员函数是为了和 C 兼容，所以使用指针而不是引用。`std::atomic_compare_exchange_weak_explicit()`需要显式地传入成功和失败的内存顺序，原因是没有默认参数。
+
+`std::atomic_flag`打破了这种趋势，保留了`flag`部分，`std::atomic_flag_test_and_set()`和`std::atomic_flag_clear()`，需要内存顺序参数，用`std::atomic_flag_test_and_set_explicit()`和`std::atomic_flag_clear_explicit()`。
+
+C++标准库提供了以原子方式访问`std::shared_ptr<>`实例的接口。但是严格说来，`std::shared_ptr<>`不是原子类型。不过标准委员会觉得它们很重要。提供了`load`,`store`,`exchange`,`compare-exchange`，以`std::shared_ptr<>*`作为第一个参数。
+```cpp
+std::shared_ptr<my_data> p;
+void process_global_data()
+{
+    std::shared_ptr<my_data> local = std::atomic_load(&p);
+    process_data(local);
+}
+
+void update_global_data()
+{
+    std::shared_ptr<my_data> local(new my_data);
+    std::atomic_store(&p, local);
+}
+```
+
+Concurrency TS还提供了`std::experimental::atomic_shared_ptr<T>`，这是一个原子类型。和`std::atomic<UDT>`一样，有`load`,`store`,`exchange`,`compare-exchange`方法。单独的实现可能是`lock-free`的，那么相比`std::shared_ptr`没有额外开销。和模板类`std::atomic`一样，这依赖于平台，所以需要调用`is_lock_free`来检查。即使不是`lock-free`的，也推荐使用`std::experimental::atomic_shared_ptr`而不是在`std::shared_ptr`上使用这里介绍的函数，因为前者更清晰、简单，不会因为忘记用原子方法而出错（潜在的竞争）。如果使用原子类型和操作是为了性能，那么需要和其他同步机制做性能对比。
