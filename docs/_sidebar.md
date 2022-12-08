@@ -1,2 +1,3 @@
 - [Home](/)
+- [TAOCP](/TAOCP/)
 - [C++ Concurrency](/CppConcurrency/)
