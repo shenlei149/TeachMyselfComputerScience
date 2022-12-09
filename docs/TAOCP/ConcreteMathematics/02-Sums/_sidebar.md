@@ -1,4 +1,5 @@
 - [Home](/)
 - [TAOCP](/TAOCP/)
 - [Concrete Mathematics](/TAOCP/ConcreteMathematics/)
-  - [02 Sums](/TAOCP/ConcreteMathematics/02-Sums/)
+- [02 Sums](/TAOCP/ConcreteMathematics/02-Sums/)
+  - 
