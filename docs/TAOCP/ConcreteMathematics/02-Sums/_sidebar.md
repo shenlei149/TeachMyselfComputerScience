@@ -2,4 +2,4 @@
 - [TAOCP](/TAOCP/)
 - [Concrete Mathematics](/TAOCP/ConcreteMathematics/)
 - [02 Sums](/TAOCP/ConcreteMathematics/02-Sums/)
-  - 
+  - [06 FINITE AND INFINITE CALCULUS](/TAOCP/ConcreteMathematics/02-Sums/06-FINITE-AND-INFINITE-CALCULUS.md)
