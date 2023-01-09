@@ -309,3 +309,33 @@ $$\begin{aligned}
 &=1-\frac{1}{n+1}+2H_n-2+\frac{2}{n+1}\\
 &=2H_n-1+\frac{1}{n+1}
 \end{aligned}$$
+
+### 24
+这个题目前和答案不一致。但是不知道哪里错了。TODO。
+
+分部求和。令 $\Delta v=x^{\underline{m}}, u=H_x$，那么 $v=\frac{x^{\underline{m+1}}}{m+1},\Delta u=\frac{1}{x+1}=x^{\underline{-1}}$，
+$$Ev \Delta u=\frac{(x+1)^{\underline{m+1}}}{m+1}\frac{1}{x+1}=\frac{x^{\underline{m}}}{m+1}$$
+那么
+$$\begin{aligned}
+\sum_{0\leq k<n} k^{\underline{m}}H_k&=(H_x\frac{x^{\underline{m+1}}}{m+1}-\frac{x^{\underline{m}}}{m+1})\bigg|_0^n\\
+&=(H_n\frac{n^{\underline{m+1}}}{m+1}-\frac{n^{\underline{m}}}{m+1})+\frac{0^{\underline{m}}}{m+1}
+\end{aligned}$$
+题目中 $m=-2$，那么
+$$
+\begin{aligned}
+\sum_{0\leq k<n} k^{\underline{m}}H_k&=(H_n\frac{n^{\underline{-1}}}{-1}-\frac{n^{\underline{-2}}}{-1})+\frac{0^{\underline{-1}}}{-1}\\
+&=-H_n\frac{1}{n+1}+\frac{1}{(n+1)(n+2)}-1
+\end{aligned}
+$$
+
+### 25
+TODO
+
+### 26
+TODO
+
+### 27
+TODO
+
+### 28
+TODO

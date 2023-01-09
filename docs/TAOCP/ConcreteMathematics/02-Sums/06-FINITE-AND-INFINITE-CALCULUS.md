@@ -196,4 +196,4 @@ $$\begin{aligned}
 &=\frac{x^{\underline{2}}}{2}H_x-\frac{x^{\underline{2}}}{4}+C
 \end{aligned}$$
 上面第一行到第二行应用了公式$(2.52)$，其中$m=-1,n=2$。给出上下界就能得到结果
-$$\sum_{0\leq k<n}kH_k=\sum_0^nxH_x\delta x=\frac{n^{\underline{2}}}{2}(H_n-\frac{1}{2})$$
+$$\sum_{0\leq k<n}kH_k=\sum_0^nxH_x\delta x=\frac{n^{\underline{2}}}{2}(H_n-\frac{1}{2})\tag{2.57}$$
