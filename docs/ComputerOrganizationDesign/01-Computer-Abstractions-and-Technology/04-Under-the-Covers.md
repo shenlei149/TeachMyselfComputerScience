@@ -25,3 +25,10 @@ I/O 包含触摸屏、前/后置摄像头、麦克风、扬声器、加速计、
 memory`）芯片，用于存储指令和数据。RAM 部分说明访问任意一个部分的时间是一样的。
 
 再深入看，处理器中还包含缓存（`cache memory`），使用 SRAM（`static random-access memory`）技术，用于缓存 DRAM 的数据。SRAM 密度更低，更快，更贵。SRAM 与 DRAM 组成了两层的存储层次结构（`memory hierarchy`）。
+
+这又是一个抽象的例子，定义了硬件和底层软件之间的交互接口。这就是指令集架构（`instruction set architecture`），或者简称架构（`architecture`）。操作系统会对底层做一些封装，我们一般将基本的指令集和操作系统提供的接口统称为 ABI（`application binary interface`）。
+
+架构本身与实现（`implementation`）无关，具体的实现遵循抽象的架构即可。
+
+### A Safe Place for Data
+存储分为易失性（`volatile`）和非易失性（`nonvolatile memory`）两种存储，DRAM 是易失的，DVD 是非易失的。前者往往称为主存（`main memory`, `primary memory`），后者称为辅助存储器（`secondary memory`），处于存储层次结构的下层。常见的辅助存储器有磁盘（`magnetic disks`）和闪存（`flash memory`）。
