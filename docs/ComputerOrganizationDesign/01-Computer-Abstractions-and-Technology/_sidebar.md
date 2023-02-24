@@ -5,3 +5,4 @@
   - [02 Seven Great Ideas in Computer Architecture](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/02-Seven-Great-Ideas-in-Computer-Architecture.md)
   - [03 Below Your Program](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/03-Below-Your-Program.md)
   - [04 Under the Covers](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/04-Under-the-Covers.md)
+  - [06 Defining Performance](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/06-Performance.md)
