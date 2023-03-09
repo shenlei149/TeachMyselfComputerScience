@@ -193,4 +193,269 @@ int main()
 
 下面看一个更复杂的例子，涉及三个变量和五个线程。
 ```cpp
+#include <thread>
+#include <atomic>
+#include <iostream>
+
+std::atomic<int> x(0), y(0), z(0);
+std::atomic<bool> go(false);
+unsigned const loop_count = 10;
+
+struct read_values
+{
+    int x, y, z;
+};
+
+read_values values1[loop_count];
+read_values values2[loop_count];
+read_values values3[loop_count];
+read_values values4[loop_count];
+read_values values5[loop_count];
+
+void increment(std::atomic<int> *var_to_inc, read_values *values)
+{
+    while (!go)
+        std::this_thread::yield();
+
+    for (unsigned i = 0; i < loop_count; ++i)
+    {
+        values[i].x = x.load(std::memory_order_relaxed);
+        values[i].y = y.load(std::memory_order_relaxed);
+        values[i].z = z.load(std::memory_order_relaxed);
+        var_to_inc->store(i + 1, std::memory_order_relaxed);
+        std::this_thread::yield();
+    }
+}
+
+void read_vals(read_values *values)
+{
+    while (!go)
+        std::this_thread::yield();
+
+    for (unsigned i = 0; i < loop_count; ++i)
+    {
+        values[i].x = x.load(std::memory_order_relaxed);
+        values[i].y = y.load(std::memory_order_relaxed);
+        values[i].z = z.load(std::memory_order_relaxed);
+        std::this_thread::yield();
+    }
+}
+
+void print(read_values *v)
+{
+    for (unsigned i = 0; i < loop_count; ++i)
+    {
+        if (i)
+            std::cout << ",";
+        std::cout << "(" << v[i].x << "," << v[i].y << "," << v[i].z << ")";
+    }
+    std::cout << std::endl;
+}
+
+int main()
+{
+    std::thread t1(increment, &x, values1);
+    std::thread t2(increment, &y, values2);
+    std::thread t3(increment, &z, values3);
+    std::thread t4(read_vals, values4);
+    std::thread t5(read_vals, values5);
+    go = true;
+    t5.join();
+    t4.join();
+    t3.join();
+    t2.join();
+    t1.join();
+    print(values1);
+    print(values2);
+    print(values3);
+    print(values4);
+    print(values5);
+}
 ```
+程序包含三个全局原子变量，五个线程。每个线程循环 10 次，使用 `memory_order_relaxed` 内存顺序读取原子变量的值写到对应的数组中。其中三个会每次对其中一个原子变量进行加一。
+
+`go` 原子变量的目的是让这几个线程尽可能的同时开始，而不会出现一个线程都运行完了另一个还没有初始化完成。
+
+一种可能得输出如下所示：
+```
+(0,0,0),(1,0,0),(2,0,0),(3,0,0),(4,0,0),(5,7,0),(6,7,8),(7,9,8),(8,9,8),(9,9,10)
+(0,0,0),(0,1,0),(0,2,0),(1,3,5),(8,4,5),(8,5,5),(8,6,6),(8,7,9),(10,8,9),(10,9,10)
+(0,0,0),(0,0,1),(0,0,2),(0,0,3),(0,0,4),(0,0,5),(0,0,6),(0,0,7),(0,0,8),(0,0,9)
+(1,3,0),(2,3,0),(2,4,1),(3,6,4),(3,9,5),(5,10,6),(5,10,8),(5,10,10),(9,10,10),(10,10,10)
+(0,0,0),(0,0,0),(0,0,0),(6,3,7),(6,5,7),(7,7,7),(7,8,7),(8,8,7),(8,8,9),(8,8,9)
+```
+* 前面三行分别对应前三个线程，每行对应 `x,y,z` 中的一个原子变量依次加一。
+* 在 `x` 增加的线程中 `y,z` 的增加是非均匀的。其他线程也是类似的。
+* 第三个线程貌似只递增 `z` 没有看到其他变量的更新，但是这不影响其他线程能看到 `z` 的更新。
+
+这只是一种可能性，还有很多其他的可能性。不过都遵循从小到大的规律，同时，前三个线程对于 `x, y, z` 的自增是严格的 0 到 9。
+
+#### UNDERSTANDING RELAXED ORDERING
+书中给了一个形象的例子来说明这个问题。
+
+想想一个房间有一个人，他有一个笔记本，依次记录一些数字。你可以打电话告诉他一个数，也可以问询一个数。一旦告诉你某个数字，他下一次会告诉同一个结果或者下方的数字，绝对不会回复上面的数字。
+
+你和另一个人，比如 Carl 一同打电话。比如 Carl 要求写下 23 后你打电话要求写下 42，这个数字不一定会在下次 Carl 查询的时候被告知对法。
+
+进而考虑不是一个房间，而是一堆房间。问题就更复杂了，不过房间中的人的原则是不变的。这个房间就是原子变量，你和 Carl 就是不同的线程，上述的原则就是 `memory_order_relaxed` 内存模型。`exchange` 函数就是写下一个数字并且告诉我上一个数字是多少，`compare_exchange_strong` 函数就是如果笔记本底部数字是多少就写下多少，否则告诉我最后一个值是多少。
+
+宽松顺序会使得问题复杂很多，不建议使用。最早的例子只有两个原子变量就会有意想不到的结果，可以想象，如果设计更多的原子变量会更复杂。
+
+#### ACQUIRE-RELEASE ORDERING
+获得释放（`acquire-release`）顺序也没有全局一致的顺序，但是引入了一些同步。原子加载（`load`）是获得（`acquire`）操作（`memory_order_acquire`），原子存储（`store`）是释放（`release`）操作（`memory_order_release`），原子地读修改写（`fetch_add()`, `exchange()`）是其中之一或者都是（`memory_order_acq_rel`）。同步是成对出现的，一个线程释放，另一个线程获得。一个释放操作和一个获得操作同步，意味着读到的是刚写的值。多个线程之间看到的顺序不同，但是这个顺序是受到约束的。下面是使用获得释放顺序的例子。
+```cpp
+#include <atomic>
+#include <thread>
+#include <assert.h>
+
+std::atomic<bool> x, y;
+std::atomic<int> z;
+
+void write_x()
+{
+    x.store(true, std::memory_order_release);
+}
+
+void write_y()
+{
+    y.store(true, std::memory_order_release);
+}
+
+void read_x_then_y()
+{
+    while (!x.load(std::memory_order_acquire))
+        ;
+    if (y.load(std::memory_order_acquire))
+        ++z;
+}
+
+void read_y_then_x()
+{
+    while (!y.load(std::memory_order_acquire))
+        ;
+    if (x.load(std::memory_order_acquire))
+        ++z;
+}
+
+int main()
+{
+    x = false;
+    y = false;
+    z = 0;
+    std::thread a(write_x);
+    std::thread b(write_y);
+    std::thread c(read_x_then_y);
+    std::thread d(read_y_then_x);
+    a.join();
+    b.join();
+    c.join();
+    d.join();
+    assert(z.load() != 0);
+}
+```
+最后的 `assert` 也是出现失败的情况，这和宽松顺序一样。`x, y` 分别在不同的线程更新，释放获得操作成对出现且不会影响其他线程，所以 `x, y` 都可能读到 `false`。
+
+下图展示了这一点。读 `x` 的事件和写 `x` 的事件之间没有约束，也没有 `happens-before` 关系。
+
+![](0304.png)
+
+为了看到获得释放顺序的好处，可以将写放到一个线程。把前面宽松顺序的例子改写一下。使用 `memory_order_release, memory_order_acquire` 内存模型。
+```cpp
+#include <atomic>
+#include <thread>
+#include <assert.h>
+
+std::atomic<bool> x, y;
+std::atomic<int> z;
+
+void write_x_then_y()
+{
+    x.store(true, std::memory_order_relaxed);
+    y.store(true, std::memory_order_release);
+}
+
+void read_y_then_x()
+{
+    while (!y.load(std::memory_order_acquire))
+        ;
+    if (x.load(std::memory_order_relaxed))
+        ++z;
+}
+
+int main()
+{
+    x = false;
+    y = false;
+    z = 0;
+    std::thread a(write_x_then_y);
+    std::thread b(read_y_then_x);
+    a.join();
+    b.join();
+    assert(z.load() != 0);
+}
+```
+由于采用了获得释放顺序同步，那么读到 `y` 是 `true` 那么表明写 `true` 发生在这之前。由于写 `x` 在写 `y` 之前，读 `x` 在读 `y` 之后，所以读 `x` 在写 `x` 之后，所以读到的一定是 `true`，`assert` 不会被触发。如果读 `y` 不在循环中，可能会读到 `false`，同时也没有顺序同步的保证，那么读 `x` 时也有可能读到 `false`。获得释放要成对出现，如果写 `y` 或者读 `y` 有一处使用宽松顺序，那么读 `x` 是没有顺序保证的。
+
+#### TRANSITIVE SYNCHRONIZATION WITH ACQUIRE-RELEASE ORDERING
+研究传递性至少需要三个线程。第一个线程以 `release` 写某个值，第二个线程以 `acquire` 读该值，然后以 `release` 写另一个值，第三个线程以 `acquire` 读另一个值。这些都是同步操作，那么第三个线程能够看到第一个线程在写某个值之前的操作，尽管第二个线程压根没有接触这些值。
+```cpp
+std::atomic<int> data[5];
+std::atomic<bool> sync1(false), sync2(false);
+
+void thread_1()
+{
+    data[0].store(42, std::memory_order_relaxed);
+    data[1].store(97, std::memory_order_relaxed);
+    data[2].store(17, std::memory_order_relaxed);
+    data[3].store(-141, std::memory_order_relaxed);
+    data[4].store(2003, std::memory_order_relaxed);
+    sync1.store(true, std::memory_order_release);
+}
+
+void thread_2()
+{
+    while (!sync1.load(std::memory_order_acquire))
+        ;
+    sync2.store(true, std::memory_order_release);
+}
+
+void thread_3()
+{
+    while (!sync2.load(std::memory_order_acquire))
+        ;
+    assert(data[0].load(std::memory_order_relaxed) == 42);
+    assert(data[1].load(std::memory_order_relaxed) == 97);
+    assert(data[2].load(std::memory_order_relaxed) == 17);
+    assert(data[3].load(std::memory_order_relaxed) == -141);
+    assert(data[4].load(std::memory_order_relaxed) == 2003);
+}
+```
+由于传递性，`assert` 不会失败。
+
+这个例子中，第二个线程可以以 `memory_order_acq_rel` 进行读修改写操作。下面的例子中使用 `compare_exchange_strong()` 达到相同的目的。
+```cpp
+std::atomic<int> sync(0);
+void thread_1()
+{
+    // ...
+    sync.store(1, std::memory_order_release);
+}
+
+void thread_2()
+{
+    int expected = 1;
+    while (!sync.compare_exchange_strong(expected, 2,
+                                         std::memory_order_acq_rel))
+        expected = 1;
+}
+
+void thread_3()
+{
+    while (sync.load(std::memory_order_acquire) < 2)
+        ;
+    // ...
+}
+```
+使用读修改写操作，选择合适的顺序语义是非常重要的。这里即需要获得语义，也需要释放语义，所以使用 `memory_order_acq_rel`。如果 `fetch_sub` 使用 `memory_order_acquire` 的话不会同步，因为写操作不是释放操作。同样地，如果 `fetch_or` 使用 `memory_order_release` 的话也不会同步，因为读操作不是获得操作。`memory_order_acq_rel` 具备这两个语义，所以和上一个写操作同步，也和下一个读操作同步。
+
+宽松顺序仍旧是宽松的，不过由于引入了获得释放语义的顺序，那么这些操作受到一些限制，和一些操作有 `happens-before` 关系。
