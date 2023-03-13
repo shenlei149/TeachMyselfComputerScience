@@ -5,3 +5,4 @@
   - [Sharing data between threads](/CppConcurrency/ch03/)
   - [Synchronizing concurrent operations](/CppConcurrency/ch04/)
   - [The C++ memory model and operations on atomic types](/CppConcurrency/ch05/)
+  - [Designing lock-based concurrent data structures](/CppConcurrency/ch06/)
