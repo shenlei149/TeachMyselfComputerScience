@@ -459,3 +459,158 @@ void thread_3()
 使用读修改写操作，选择合适的顺序语义是非常重要的。这里即需要获得语义，也需要释放语义，所以使用 `memory_order_acq_rel`。如果 `fetch_sub` 使用 `memory_order_acquire` 的话不会同步，因为写操作不是释放操作。同样地，如果 `fetch_or` 使用 `memory_order_release` 的话也不会同步，因为读操作不是获得操作。`memory_order_acq_rel` 具备这两个语义，所以和上一个写操作同步，也和下一个读操作同步。
 
 宽松顺序仍旧是宽松的，不过由于引入了获得释放语义的顺序，那么这些操作受到一些限制，和一些操作有 `happens-before` 关系。
+
+### Release sequences and synchronizes-with
+对原子类型进行读写操作要选择合适的内存序，如果每一对都符合释放获得语义，后一个读操作读到的就是前一个写操作写的值，那么就是释放序列（`release sequence`）。
+
+下面的例子使用 `atomic<int>` 记录 `count` 来同步消费者和生产者。
+```cpp
+#include <atomic>
+#include <thread>
+
+std::vector<int> queue_data;
+std::atomic<int> count;
+
+void populate_queue()
+{
+    unsigned const number_of_items = 20;
+    queue_data.clear();
+    for (unsigned i = 0; i < number_of_items; ++i)
+    {
+        queue_data.push_back(i);
+    }
+
+    count.store(number_of_items, std::memory_order_release);
+}
+
+void consume_queue_items()
+{
+    while (true)
+    {
+        int item_index;
+        if ((item_index = count.fetch_sub(1, std::memory_order_acquire)) <= 0)
+        {
+            wait_for_more_items();
+            continue;
+        }
+
+        process(queue_data[item_index - 1]);
+    }
+}
+
+int main()
+{
+    std::thread a(populate_queue);
+    std::thread b(consume_queue_items);
+    std::thread c(consume_queue_items);
+    a.join();
+    b.join();
+    c.join();
+}
+```
+如果只有一个消费者是没有问题的，`fetch_sub` 是 `memory_order_acquire` 语义而写操作是 `memory_order_release`。不过有多个消费者就不是这样了，第二个消费者不见得能够看到第一个消费者修改之后的值，那么就会出错。正确的做法是每个消费者改写的时候也要有 `memory_order_release` 语义。
+
+### Fences
+围栏（`fence`），也称为内存屏障（`memory barriers`），是一个全局操作，可以影响同一个线程的其他原子操作顺序。将前面使用宽松顺序的例子加上围栏，加上一些限制，使得有 `happens-before` 和 `synchronizes-with` 的关系。
+```cpp
+#include <atomic>
+#include <thread>
+#include <assert.h>
+
+std::atomic<bool> x, y;
+std::atomic<int> z;
+
+void write_x_then_y()
+{
+    x.store(true, std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_release);
+    y.store(true, std::memory_order_relaxed);
+}
+
+void read_y_then_x()
+{
+    while (!y.load(std::memory_order_relaxed))
+        ;
+    std::atomic_thread_fence(std::memory_order_acquire);
+    if (x.load(std::memory_order_relaxed))
+        ++z;
+}
+
+int main()
+{
+    x = false;
+    y = false;
+    z = 0;
+    std::thread a(write_x_then_y);
+    std::thread b(read_y_then_x);
+    a.join();
+    b.join();
+    assert(z.load() != 0);
+}
+```
+释放围栏和获得围栏成对出现，使得写 `x` 一定发生在读 `x` 之前，所以 `assert` 不会失败。注意，两处围栏都是必要的：在一个线程线程释放操作，在另一个线程获得操作。
+
+在这个 case 中，释放围栏的效果相当于写 `y` 时使用 `memory_order_release` 而不是 `memory_order_relaxed`。类似的，获得围栏相当于读 `y` 时使用 `memory_order_acquire`。
+
+尽管围栏同步依赖于在围栏前面读写数据的顺序，但是同步点是围栏本身。如果把写 `x` 挪到围栏之后，那么 `assert` 可能会失败。
+```cpp
+void write_x_then_y()
+{
+    std::atomic_thread_fence(std::memory_order_release);
+    x.store(true, std::memory_order_relaxed);
+    y.store(true, std::memory_order_relaxed);
+}
+```
+这两个写操作没有被围栏分开，也就不会被围栏强加一个顺序。
+
+### Ordering non-atomic operations with atomics
+将上一个小节的例子用非原子 `bool` 改写，效果也是一样的。
+```cpp
+#include <atomic>
+#include <thread>
+#include <assert.h>
+
+bool x = false;
+std::atomic<bool> y;
+std::atomic<int> z;
+
+void write_x_then_y()
+{
+    // 围栏使得写 x 和 y 之前有了顺序保证
+    x = true;
+    std::atomic_thread_fence(std::memory_order_release);
+    y.store(true, std::memory_order_relaxed);
+}
+
+void read_y_then_x()
+{
+    while (!y.load(std::memory_order_relaxed))
+        ;
+    // 围栏使得读也有先后顺序
+    std::atomic_thread_fence(std::memory_order_acquire);
+    if (x)
+        ++z;
+}
+
+int main()
+{
+    x = false;
+    y = false;
+    z = 0;
+    std::thread a(write_x_then_y);
+    std::thread b(read_y_then_x);
+    a.join();
+    b.join();
+    assert(z.load() != 0);
+}
+```
+围栏的使用使得 `x, y` 读写之前有 `happens-before` 的关系，所以 `assert` 也不会失败。`y` 必须是原子类型，否则读写 `y` 会产生竞争。围栏对 `x` 操作强加了顺序，那么能看到 `y` 已经是 `true` 了，那么再读 `x` 是安全的，强加的顺序保证读写 `x` 不会有竞争。
+
+### Ordering non-atomic operations
+使用原子操作对非原子操作加一个顺序是 `sequence-before` 的重要应用。如果一个非原子操作 `sequenced-before` 一个原子操作，一个原子操作又 `happens before` 另一个线程的某个操作，那么非原子操作在某个操作发生之前。这也是上一节中非原子操作起作用的原因。同时，这也是 C++ 同步库的基础。下面分析最简单的自旋锁的例子。
+
+`lock()` 操作使用 `std::memory_order_acquire` 顺序循环调用 `flag.test_and_set()`，`unlock()` 使用 `std::memory_order_release` 顺序调用 `flag.clear()`。当第一个线程调用 `lock()` 时初始状态是清除状态，所以 `test_and_set()` 设置标记位并返回 `false`，终止循环，也就是拿到了锁。这个线程开始修改保护的数据。其他线程调用 `lock()` 发现标记位被设置了，一直处于循环状态。
+
+当第一个程序修改完被保护的数据时，调用 `unlock()`，以 `std::memory_order_release` 内存顺序调用 `flag.clear()`。这和其他调用 `lock()` 的线程是同步的，因为调用 `lock()` 的线程是以 `std::memory_order_acquire` 顺序调用 `test_and_set()`。第一个线程修改数据是 `sequence before` `unlock()` 操作，而这个操作又 `happens before` 其他线程的 `lock()` 操作，其他线程在 `lock()` 之后再修改被保护的数据。所以修改数据的操作也是同步的。
+
+其他互斥操作有其他内部操作，不过基本原理都是一样的。二、三、四章介绍的同步机制都提供了顺序保证，即有 `synchronizes-with` 关系。
