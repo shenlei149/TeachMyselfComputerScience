@@ -160,5 +160,259 @@ public:
 
 不过有一个问题值得关注，当添加了一个新的数据，`data_cond.notify_one()` 被调用，一个线程被唤醒，但是构造 `std::shared_ptr<>` 的时候抛出了一场，那么其他线程也不会被唤醒。如果这不可以接受的话，可以调用 `data_cond.notify_all()` 唤醒所有的进行，不过也只有一个会处理数据，其他会再次睡眠，浪费资源。第二个可选的方法是如果 `wait_and_pop()` 中有异常，继续调用`notify_one()` 唤醒其他线程处理。第三种方式是把构造 `std::shared_ptr<>` 放到 `push()` 中，也就是保存的是持有数据的智能指针而不是数据本身。从 `std::queue<>` 复制 `std::shared_ptr<>` 不会有异常，所以 `wait_and_pop()` 是安全的。下面是基于这种思想改写的线程安全队列。
 ```cpp
-```
+template <typename T>
+class threadsafe_queue
+{
+private:
+    mutable std::mutex mut;
+    std::queue<std::shared_ptr<T>> data_queue;
+    std::condition_variable data_cond;
 
+public:
+    threadsafe_queue() {}
+
+    void wait_and_pop(T &value)
+    {
+        std::unique_lock<std::mutex> lk(mut);
+        data_cond.wait(lk, [this]
+                       { return !data_queue.empty(); });
+        value = std::move(*data_queue.front());
+        data_queue.pop();
+    }
+
+    bool try_pop(T &value)
+    {
+        std::lock_guard<std::mutex> lk(mut);
+        if (data_queue.empty())
+            return false;
+
+        value = std::move(*data_queue.front());
+        data_queue.pop();
+        return true;
+    }
+
+    std::shared_ptr<T> wait_and_pop()
+    {
+        std::unique_lock<std::mutex> lk(mut);
+        data_cond.wait(lk, [this]
+                       { return !data_queue.empty(); });
+        std::shared_ptr<T> res = data_queue.front();
+        data_queue.pop();
+        return res;
+    }
+
+    std::shared_ptr<T> try_pop()
+    {
+        std::lock_guard<std::mutex> lk(mut);
+        if (data_queue.empty())
+            return std::shared_ptr<T>();
+
+        std::shared_ptr<T> res = data_queue.front();
+        data_queue.pop();
+        return res;
+    }
+
+    void push(T new_value)
+    {
+        std::shared_ptr<T> data(
+            std::make_shared<T>(std::move(new_value)));
+        std::lock_guard<std::mutex> lk(mut);
+        data_queue.push(data);
+        data_cond.notify_one();
+    }
+
+    bool empty() const
+    {
+        std::lock_guard<std::mutex> lk(mut);
+        return data_queue.empty();
+    }
+};
+```
+使用 `std::shared_ptr<>` 存储数据有一个额外的好处：现在构造数据可以在 `push()` 的锁外面，而之前必须在 `pop()` 的锁里面。分配内存需要一点时间，现在就减少了互斥锁的范围，潜在提高了并发能力。
+
+和线程安全的栈一样，由于只有一个 `std::queue<>` 要么保护起来，要么没有保护，所以多个线程的操作需要串行化，只有一个线程能访问数据。
+
+### A thread-safe queue using fine-grained locks and condition variables
+如果我们要使用细粒度的锁，那么我们需要仔细考察一下队列这个数据结构。
+
+最简单的队列是一个单链表。有一个 head 指针指向队列的第一个元素，删除的时候把 `head` 往后移动一个即可。还有一个 `tail` 指针指向队列的最后一个元素，新增的时候构造一个新节点，最后一个节点指向新节点，然后移动 `tail` 指针。
+
+下面是一个简单的实现，只有 `try_pop()` 没有 `wait_and_pop()` 的原因是这个队列只能单线程运行。
+```cpp
+template <typename T>
+class queue
+{
+private:
+    struct node
+    {
+        T data;
+        std::unique_ptr<node> next;
+        node(T data_) : data(std::move(data_))
+        {
+        }
+    };
+    std::unique_ptr<node> head;
+    node *tail;
+
+public:
+    queue() : tail(nullptr) {}
+    queue(const queue &other) = delete;
+    queue &operator=(const queue &other) = delete;
+
+    std::shared_ptr<T> try_pop()
+    {
+        if (!head)
+        {
+            return std::shared_ptr<T>();
+        }
+        std::shared_ptr<T> const res(
+            std::make_shared<T>(std::move(head->data)));
+        std::unique_ptr<node> const old_head = std::move(head);
+        head = std::move(old_head->next);
+        if (!head)
+            tail = nullptr;
+
+        return res;
+    }
+
+    void push(T new_value)
+    {
+        std::unique_ptr<node> p(new node(std::move(new_value)));
+        node *const new_tail = p.get();
+        if (tail)
+        {
+            tail->next = std::move(p);
+        }
+        else
+        {
+            head = std::move(p);
+        }
+
+        tail = new_tail;
+    }
+};
+```
+首先我们使用 `std::unique_ptr<node>` 来保存数据，当不再使用的时候，会自动释放。所有权由 `head` 节点串成一个链，所以 `tail` 是裸指针类型。
+
+如果在这个实现上使用细粒度的锁以支持多线程访问会有些问题。我们有两个数据项（`head` 和 `tail`），那么理论上可以用两个互斥分别保护这两个数据。
+
+最明显的问题是 `push()` 同时修改 `head, tail`，那么需要同时加两个锁。这一点问题不大，可以做到。更严重的问题是，`push(), pop()` 可能会访问同一个节点的 `next` 指针：如果 `tail == head`，也就是链表只有一个节点，`push()` 访问 `tail->next` `try_pop()` 访问 `head->next`，这两个 `next` 是同一个对象。那么在这两个函数里面也不得不加两个锁，那么细粒度锁就无效了。
+
+#### ENABLING CONCURRENCY BY SEPARATING DATA
+利用一个假的节点即可解决这个问题。对于空队列，`head, tail` 指向假的节点而不是 `NULL`。这样 `try_pop()` 就不需要在空的时候访问 `head->next`。负面影响是不得不再套一层指针来访问数据。这里本质是构造假的节点需要用到 `T` 的无参构造函数，而这一点无法保证。
+```cpp
+template <typename T>
+class queue
+{
+private:
+    struct node
+    {
+        std::shared_ptr<T> data;
+        std::unique_ptr<node> next;
+    };
+    std::unique_ptr<node> head;
+    node *tail;
+
+public:
+    queue() : head(new node), tail(head.get()) {}
+    queue(const queue &other) = delete;
+    queue &operator=(const queue &other) = delete;
+
+    std::shared_ptr<T> try_pop()
+    {
+        // 由于存在假节点，这里修改成比较 head 和 tail 是否指向同一个节点
+        if (head.get() == tail)
+        {
+            return std::shared_ptr<T>();
+        }
+
+        // 由于存的就是智能指针，这里可以直接获取不用构造
+        std::shared_ptr<T> const res(head->data);
+        std::unique_ptr<node> old_head = std::move(head);
+        head = std::move(old_head->next);
+        return res;
+    }
+
+    void push(T new_value)
+    {
+        // 这里不得不先构造一个 shared_ptr
+        std::shared_ptr<T> new_data(
+            std::make_shared<T>(std::move(new_value)));
+
+        // 构造一个新的假节点
+        std::unique_ptr<node> p(new node);
+
+        // 把值赋给旧的假节点
+        tail->data = new_data;
+        node *const new_tail = p.get();
+
+        // 指向新的假节点
+        tail->next = std::move(p);
+        tail = new_tail;
+    }
+};
+```
+现在，`push()` 只需要访问 `tail` 而不再需要访问 `head`。`try_pop()` 需要访问 `head` 和 `tail`，不过后者只用于比较，那么加锁范围更少。更重要的是，`push()` 和 `pop()` 不会访问同一个节点，那么不再需要一个互斥负责所有的事情。
+
+`push()` 加锁的范围比较容易确定，我们目的是保护 `tail`，那么从修改 `tail` 开始之前就加锁，到不再使用 `tail` 的时候释放锁，即到函数结束。
+
+`try_pop()` 稍微复杂一点。我们先看 `head`，拿到锁的线程能够修改数据，所以在使用 `head` 之前加锁。一旦修改完成，也就是在返回结果之前，就能释放锁。修改 `head` 封装成一个函数会比较简洁，不用手动释放。对于 `tail` 而言，我们只需要访问一次，即读之前加锁，读完之后即可释放锁。也可以封装成一个函数。
+```cpp
+template <typename T>
+class threadsafe_queue
+{
+private:
+    struct node
+    {
+        std::shared_ptr<T> data;
+        std::unique_ptr<node> next;
+    };
+    std::mutex head_mutex;
+    std::unique_ptr<node> head;
+    std::mutex tail_mutex;
+    node *tail;
+
+    node *get_tail()
+    {
+        std::lock_guard<std::mutex> tail_lock(tail_mutex);
+        return tail;
+    }
+
+    std::unique_ptr<node> pop_head()
+    {
+        std::lock_guard<std::mutex> head_lock(head_mutex);
+
+        if (head.get() == get_tail())
+        {
+            return nullptr;
+        }
+
+        std::unique_ptr<node> old_head = std::move(head);
+        head = std::move(old_head->next);
+        return old_head;
+    }
+
+public:
+    threadsafe_queue() : head(new node), tail(head.get()) {}
+    threadsafe_queue(const threadsafe_queue &other) = delete;
+    threadsafe_queue &operator=(const threadsafe_queue &other) = delete;
+
+    std::shared_ptr<T> try_pop()
+    {
+        std::unique_ptr<node> old_head = pop_head();
+        return old_head ? old_head->data : std::shared_ptr<T>();
+    }
+
+    void push(T new_value)
+    {
+        std::shared_ptr<T> new_data(
+            std::make_shared<T>(std::move(new_value)));
+        std::unique_ptr<node> p(new node);
+        node *const new_tail = p.get();
+        std::lock_guard<std::mutex> tail_lock(tail_mutex);
+        tail->data = new_data;
+        tail->next = std::move(p);
+        tail = new_tail;
+    }
+};
+```
