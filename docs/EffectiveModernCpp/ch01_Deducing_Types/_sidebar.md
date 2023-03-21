@@ -1,0 +1,4 @@
+- [Home](/)
+- [Effective Modern C++](/EffectiveModernCpp/)
+- [01 Deducing Types](/EffectiveModernCpp/ch01_Deducing_Types/)
+  - [Item 1: Understand template type deduction](/EffectiveModernCpp/ch01_Deducing_Types/01_Understand_template_type_deduction.md)
