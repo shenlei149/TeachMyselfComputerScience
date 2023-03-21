@@ -416,3 +416,18 @@ public:
     }
 };
 ```
+开始分析之前先看下关于 `list` 实现的一些事实。
+* `tail->next == nullptr`
+* `tail->data == nullptr`
+* `head == tail` 意味着列表为空
+* `head->next == tail` 意味着只有一个元素
+* 列表中的每个 `x`，如果 `x != tail`，`x->data` 指向 `T` 的一个实例，`x->next` 指向下一个节点。如果 `x->next == tail`，那么 `x` 是最后一个节点。
+* 从 `head` 开始寻找 `next`，最终会走到 `tail`
+
+`push()` 的实现比较直接：`tail_mutex` 保护数据结构的修改。
+
+`try_pop()` 复杂一些，不仅要对 `tail_mutex` 加锁，还需要保护 `head`。`try_pop()` 和 `push()` 可能被不同的线程同时调用，如果不对 `tail_mutex` 加锁，那么两个线程可能访问同一个数据，却没有指定顺序，那么就有发生竞争的可能性。`get_tail()` 对 `tail_mutex` 加锁，那么 `try_pop()` 中访问的 `push()` 之前的旧 `tail` 或者 `push()` 之后的新 `tail`，但不会有未定义的行为。
+
+`get_tail()` 调用是在对 `head_mutex` 加锁之后。
+
+暂停下这本书，因为工作中暂时用不到~
