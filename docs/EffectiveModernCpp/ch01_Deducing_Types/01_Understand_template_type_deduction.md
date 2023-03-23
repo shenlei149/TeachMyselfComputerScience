@@ -129,4 +129,62 @@ const char *const ptr = // ptr is const pointer to const object
     "Fun with pointers";
 f(ptr); // pass arg of type const char * const
 ```
+星号右边的 `const` 表示指针不能指向其他位置，包括 `null`。`ptr` 传递给 `f` 的时候，`ptr` 自身拷贝了一次，按值传递。类型推导根据按值传递的规则，`ptr` 自身的 `const` 属性被移除，所以 `param` 类型是 `const char *`，指针本身可以修改，指向内存不能修改。
+
+## Array Arguments
+还有一个场景没有讨论到，源于数组可以退化成指针。
+```cpp
+const char name[] = "J. P. Briggs"; // name's type is const char[13]
+const char *ptrToName = name;       // array decays to pointer
+```
+`name` 的类型是 `const char[13]`，与 `ptrToName` 的类型是 `const char*` 是不同的，不过存在退化，所以可以编译。
+
+把数组传入按值传递的函数模板会推导成什么类型呢？
+```cpp
+template <typename T>
+void f(T param); // template with by-value parameter
+f(name);         // what types are deduced for T and param?
+```
+函数参数是数组会被视为指针，所以下面两种声明是等价的。
+```cpp
+void myFunc(int param[]);
+void myFunc(int *param); // same function as above
+```
+这一点源自 C 语言，不过会让人以为两者是一样的。
+
+由于退化，所以类型推导结果为 `T` 的类型是 `const char *`。
+```cpp
+f(name); // name is array, but T deduced as const char*
+```
+还有另外一种情况，类型不能是真的数组类型，但是能声明成数组引用。
+```cpp
+template <typename T>
+void f(T &param); // template with by-reference parameter
+f(name);          // pass array to f
+```
+此时，`T` 的类型是真实的数组 `const char [13]`，那么 `f` 参数类型是 `const char (&)[13]`。
+
+这使得我们可以创建一个函数模板，编译器计算数组的大小。
+```cpp
+// return size of an array as a compile-time constant. (The
+// array parameter has no name, because we care only about
+// the number of elements it contains.)
+template <typename T, std::size_t N>
+constexpr std::size_t arraySize(T (&)[N]) noexcept
+{
+    return N;
+}
+```
+`constexpr` 使得可以编译器得到结果（参见 Item 15（TODO 贴链接））。`noexcept` 可以帮助编译器更好的优化（参见 Item 14（TODO 贴链接））。
+
+使用这个函数可以容易的创建处大小一样的数组。
+```cpp
+int keyVals[] = {1, 3, 7, 9, 11, 22, 35}; // keyVals has 7 elements
+int mappedVals[arraySize(keyVals)];       // so does mappedVals
+
+// better
+std::array<int, arraySize(keyVals)> mappedVals; // mappedVals' size is 7
+```
+
+## Function Arguments
 
