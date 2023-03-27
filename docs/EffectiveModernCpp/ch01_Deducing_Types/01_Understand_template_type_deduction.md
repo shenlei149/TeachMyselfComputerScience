@@ -187,4 +187,22 @@ std::array<int, arraySize(keyVals)> mappedVals; // mappedVals' size is 7
 ```
 
 ## Function Arguments
+函数类型和数组类型类似，也会退化成指针，那么推导行为和上述描述的一致。
+```cpp
+void someFunc(int, double); // someFunc is a function; type is void(int, double)
 
+template <typename T>
+void f1(T param); // in f1, param passed by value
+
+template <typename T>
+void f2(T &param); // in f2, param passed by ref
+
+f1(someFunc); // param deduced as ptr-to-func; type is void (*)(int, double)
+f2(someFunc); // param deduced as ref-to-func; type is void (&)(int, double)
+```
+
+## Things to Remember
+* During template type deduction, arguments that are references are treated as non-references, i.e., their reference-ness is ignored.
+* When deducing types for universal reference parameters, lvalue arguments get special treatment.
+* When deducing types for by-value parameters, const and/or volatile arguments are treated as non-const and non-volatile.
+* During template type deduction, arguments that are array or function names decay to pointers, unless they’re used to initialize references.
