@@ -3,3 +3,4 @@
 - [Concrete Mathematics](/TAOCP/ConcreteMathematics/)
 - [03 Integer Functions](/TAOCP/ConcreteMathematics/03-Integer-Functions/)
   - [01 FLOORS AND CEILINGS](/TAOCP/ConcreteMathematics/03-Integer-Functions/01-FLOORS-AND-CEILINGS.md)
+  - [02 FLOOR/CEILING APPLICATIONS](/TAOCP/ConcreteMathematics/03-Integer-Functions/02-FLOOR-CEILING-APPLICATIONS.md)
