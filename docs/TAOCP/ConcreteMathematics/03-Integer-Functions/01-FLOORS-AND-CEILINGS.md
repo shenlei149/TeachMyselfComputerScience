@@ -41,5 +41,19 @@ $$\lfloor x+n\rfloor=\lfloor x\rfloor+n, n 是整数\tag{3.6}$$
 
 通常情况下，这两个函数是多余的，我们可以任意的添加或者删除这些函数表达式。比如下面是一组实数与整数之间的不等式等价于实数的底函数或顶函数与整数的关系：
 $$\begin{aligned}
-x<n\Leftrightarrow
-\end{aligned}$$
+x<n\Leftrightarrow\lfloor x\rfloor<n&&(a)\\
+n<x\Leftrightarrow n<\lceil x\rceil&&(b)\\
+x\leq n\Leftrightarrow\lceil x\rceil\leq n&&(c)\\
+n\leq x\Leftrightarrow n\leq\lfloor x\rfloor&&(d)
+\end{aligned}\tag{3.7}$$
+这些法则很容易证明。比如 $x<n\$，因为 $\lfloor x\rfloor\leq x$，那么有 $\lfloor x\rfloor<n$。反过来，如果 $\lfloor x\rfloor<n$，因为 $x<\lfloor x\rfloor+1\leq n$，所以 $x<n$。
+
+记住这些规则相对比较简单，但是需要用哪一个就需要反复思考了。
+
+$x$ 与 $\lfloor x\rfloor$ 之差称为小数部分（`fractional part`）。由于经常出现，我们给它一个专门的符号
+$$\{x\}=x-\lfloor x\rfloor\tag{3.8}$$
+$\lfloor x\rfloor$ 有时也称为整数部分（`integer part`）。将实数 $x$ 写做 $x=n+\theta$，其中 $n$ 是整数，$0\leq\theta <1$，根据 $(3.5)(a)$ 有 $n=\lfloor x\rfloor,\theta=\{x\}$。
+
+如果 $n$ 是实数，那么 $(3.6)$ 就不再成立。不过对于 $\lfloor x+y\rfloor$，一般有两种情况。它们可以写作 $x=\lfloor x\rfloor+\{x\},y=\lfloor y\rfloor+\{y\}$，那么
+$$\lfloor x+y\rfloor=\lfloor x\rfloor+\lfloor y\rfloor+\lfloor\{x\}+\{y\}\rfloor$$
+又由于 $0\leq\{x\}+\{y\}<2$，所以 $\lfloor x+y\rfloor$ 有时等于 $\lfloor x\rfloor+\lfloor y\rfloor$ 有时等于 $\lfloor x\rfloor+\lfloor y\rfloor+1$。
