@@ -5,4 +5,7 @@
   - [02 Seven Great Ideas in Computer Architecture](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/02-Seven-Great-Ideas-in-Computer-Architecture.md)
   - [03 Below Your Program](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/03-Below-Your-Program.md)
   - [04 Under the Covers](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/04-Under-the-Covers.md)
+  - [05 Technologies for Building Processors and Memory](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/05-Technologies-for-Building-Processors-and-Memory.md)
   - [06 Defining Performance](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/06-Performance.md)
+  - [07 The Power Wall](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/07-The-Power-Wall.md)
+  - [08 The Sea Change: The Switch from Uniprocessors to Multiprocessors](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/08-The-Sea-Change-The-Switch-from-Uniprocessors-to-Multiprocessors.md)
