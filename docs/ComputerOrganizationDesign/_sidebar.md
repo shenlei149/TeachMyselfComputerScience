@@ -1,3 +1,4 @@
 - [Home](/)
 - [Computer Organization and Design (RISC-V)](/ComputerOrganizationDesign/)
   - [01 Computer Abstractions and Technology](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/)
+  - [02 Instructions: Language of the Computer](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/)
