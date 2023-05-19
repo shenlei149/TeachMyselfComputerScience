@@ -11,3 +11,4 @@
   - [08 The Sea Change: The Switch from Uniprocessors to Multiprocessors](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/08-The-Sea-Change-The-Switch-from-Uniprocessors-to-Multiprocessors.md)
   - [09 Real Stuff: Benchmarking the Intel Core i7](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/09-Real-Stuff%3A-Benchmarking-the-Intel-Core-i7.md)
   - [10 Going Faster: Matrix Multiply in Python](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/10-Going-Faster%3A-Matrix-Multiply-in-Python.md)
+  - [11 Fallacies and Pitfalls](/ComputerOrganizationDesign/01-Computer-Abstractions-and-Technology/11-Fallacies-and-Pitfalls.md)
