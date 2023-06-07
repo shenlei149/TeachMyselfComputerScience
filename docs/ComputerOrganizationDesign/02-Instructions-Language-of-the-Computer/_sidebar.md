@@ -6,3 +6,4 @@
   - [03 Operands of the Computer Hardware](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/03-Operands-of-the-Computer-Hardware.md)
   - [04 Signed and Unsigned Numbers](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/04-Signed-and-Unsigned-Numbers.md)
   - [05 Representing Instructions in the Computer](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/05-Representing-Instructions-in-the-Computer.md)
+  - [06 Logical Operations](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/06-Logical-Operations.md)
