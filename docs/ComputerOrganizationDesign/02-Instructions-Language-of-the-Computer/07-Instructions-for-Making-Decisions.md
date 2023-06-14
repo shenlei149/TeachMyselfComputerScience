@@ -77,5 +77,3 @@ bgeu x20, x11, IndexOutOfBounds     // if x20 >= x11 or x20 < 0, goto IndexOutOf
 编程语言往往支持 `switch-case` 语法。一个简单的方式是把它们转化成一系列 `if-else` 语句。
 
 更高效的方式是编译成一系列顺序指令的地址表，即分支地址表或分支表（`branch address table`, `branch table`），程序只需要选择某个索引然后执行对应的顺序指令即可。分值表是包含对应标签的地址数组。程序将合适的项加载到寄存器中，然后根据寄存器内容进行跳转。为了支持这一点，像 RISC-V 的计算机包含了间接跳转（`indirect jump`）指令，无条件跳转到寄存器指向的地址。下一节会讲解 `jalr` 指令。
-
-
