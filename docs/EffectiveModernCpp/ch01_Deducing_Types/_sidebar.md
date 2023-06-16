@@ -2,3 +2,5 @@
 - [Effective Modern C++](/EffectiveModernCpp/)
 - [01 Deducing Types](/EffectiveModernCpp/ch01_Deducing_Types/)
   - [Item 1: Understand template type deduction](/EffectiveModernCpp/ch01_Deducing_Types/01_Understand_template_type_deduction.md)
+  - [Item 2: Understand auto type deduction](/EffectiveModernCpp/ch01_Deducing_Types/02_Understand_auto_type_deduction.md)
+  - [Item 3: Understand decltype](/EffectiveModernCpp/ch01_Deducing_Types/03_Understand_decltype.md)
