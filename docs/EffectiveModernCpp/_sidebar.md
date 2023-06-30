@@ -1,3 +1,4 @@
 - [Home](/)
 - [Effective Modern C++](/EffectiveModernCpp/)
   - [01 Deducing Types](/EffectiveModernCpp/ch01_Deducing_Types/)
+  - [02 auto](/EffectiveModernCpp/ch02_auto/)

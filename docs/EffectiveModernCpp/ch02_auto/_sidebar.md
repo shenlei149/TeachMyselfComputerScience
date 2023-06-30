@@ -1,0 +1,4 @@
+- [Home](/)
+- [Effective Modern C++](/EffectiveModernCpp/)
+- [02 auto](/EffectiveModernCpp/ch02_auto/)
+  - [05 Prefer auto to explicit type declarations](/EffectiveModernCpp/ch02_auto/05_Prefer_auto_to_explicit_type_declarations.md)
