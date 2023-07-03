@@ -23,4 +23,72 @@ jal x1, ProcedureAddress    // jump to ProcedureAddress and write return address
 ```c
 jalr x0, 0(x1)
 ```
-`jalr`（`jump-and-link register instruction`）
+`jalr`（`jump-and-link register instruction`）跳转到存放在 `x1` 寄存器的地址。调用者（`caller`）把参数放到 `x10` - `x17`，然后调用 `jal x1 X` 跳转到位于 X 地址的函数，这个函数是被调用函数（`callee`）。被调用函数执行运算，把结果放到放参数的寄存器，然后调用 `jalr x0, 0(x1)` 把控制权交回给调用者。
+
+存储程序需要寄存器指向当前执行的指令的地址。历史原因，我们称这个寄存器为程序计数器（`program counter`），简写为 `PC`。更好的名字是指令地址寄存器（`instruction address register`）。`jal` 通常将 PC + 4 存到 `x1` 寄存器。
+
+另外，`jal` 可以做无条件跳转。`x0` 通常放的是零，也就是只跳转到 Label 但是不返回。
+```c
+jal x0, Label   // unconditionally branch to Label
+```
+
+### Using More Registers
+假设一个函数的参数个数多于八个，那么编译器需要更多寄存器。由于调用完成之后需要恢复调用之前的现场，任意寄存器的值需要恢复到执行函数之前。对于这个场景，我们需要把寄存器的内容 spill 到内存。
+
+一个理想的数据结构是栈（`stack`）。栈需要一个指针指向最近的分配的地址，以指示下一个存放数据的地址。一般地，这样指针的称为堆栈指针（`stack pointer`），缩写为 `sp`，RISC-V 使用寄存器 `x2` 保存 `sp`。栈存储数据或者恢复数据，都需要调整堆栈指针，一次一个字。栈非常通用，数据操作有专有名词：入栈 `push` 和出栈 `pop`。
+
+历史原因，栈从高地址向低地址增长，所以通过减堆栈指针来入栈，增加堆栈指针实现出栈。
+
+#### Compiling a C Procedure That Doesn’t Call Another Procedure
+现在分析下面 C 代码编译成什么样的汇编代码。这个 C 代码来自 2.2 节。
+```c
+int leaf_example (int g, int h, int i, int j)
+{
+    int f;
+
+    f = (g + h) − (i + j);
+    return f;
+}
+```
+
+变量 `g, h, i, j` 对应寄存器 `x10, x11, x12, x13`，变量 `f` 对应寄存器 `x20`。编译函数首先要写一个标签：
+```
+leaf_example:
+```
+
+下一步需要保存这个函数要用的寄存器。类似于 2.2 节，这个函数还需要两个额外的临时寄存器 `x5, x6`。加上 `f` 对应的 `x20`，我们需要保存三个寄存器的值到栈上。
+```c
+addi sp, sp, -12    // adjust stack to make room for 3 items
+sw x5, 8(sp)        // save register x5 for use afterwards
+sw x6, 4(sp)        // save register x6 for use afterwards
+sw x20, 0(sp)       // save register x20 for use afterwards
+```
+
+下面是这个过程对应的栈变化。
+
+![](0801.png)
+
+下面执行运算。
+```c
+add x5, x10, x11    // register x5 contains g + h
+add x6, x12, x13    // register x6 contains i + j
+sub x20, x5, x6     // f = x5 − x6, which is (g + h) − (i + j)
+```
+
+为了返回结果 `f` 的值，拷贝到参数寄存器
+```c
+addi x10, x20, 0    // returns f (x10 = x20 + 0)
+```
+
+返回之前，出栈以恢复现场
+```c
+lw x20, 0(sp)       // restore register x20 for caller
+lw x6, 4(sp)        // restore register x6 for caller
+lw x5, 8(sp)        // restore register x5 for caller
+addi sp, sp, 12     // adjust stack to delete 3 items
+```
+
+最后跳转到返回地址
+```c
+jalr x0, 0(x1)      // branch back to calling routine
+```
