@@ -2,3 +2,4 @@
 - [Effective Modern C++](/EffectiveModernCpp/)
   - [01 Deducing Types](/EffectiveModernCpp/ch01_Deducing_Types/)
   - [02 auto](/EffectiveModernCpp/ch02_auto/)
+  - [03 Moving to Modern C++](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/)

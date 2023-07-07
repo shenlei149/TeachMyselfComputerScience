@@ -1,0 +1,4 @@
+- [Home](/)
+- [Effective Modern C++](/EffectiveModernCpp/)
+- [03 Moving to Modern C++](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/)
+  - [07 Distinguish between () and {} when creating objects](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/07_Distinguish_between_()_and_%7B%7D_when_creating_objects.md)
