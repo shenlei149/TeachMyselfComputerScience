@@ -194,3 +194,41 @@ std::vector<int> v1(10, 20); // use non-std::initializer_list ctor: create 10-el
 std::vector<int> v2{10, 20}; // use std::initializer_list ctor: create 2-element
                              // std::vector, element values are 10 and 20
 ```
+
+这里有两个问题需要探讨。
+
+第一个是作为类的作者，如果有一个多多个 `std::initializer_list` 参数的构造函数重载，那客户端可能看不到非 `std::initializer_list` 的构造函数了。这个设计要尽可能避免，也就是说 `std::vector` 的接口设计不是很好，容易让人犯错。如果一个类没有 `std::initializer_list` 的构造函数，客户端使用了大括号的方式调用非 `std::initializer_list` 的构造函数创建对象。当我们增加一个接受 `std::initializer_list` 参数的构造函数重载，一切都发生了变化。这个新的函数会几乎屏蔽其他构造函数。
+
+第二个问题是我们应该使用哪种方式。各有优缺点，选定一个，保持一致就好。
+
+如果你是一个模板类的作者，那么使用哪种方式构造对象会更让人头疼，因为你不知道应该使用哪种方式！比如我们有一个接受任意参数个数、任意参数类型的函数，其中需要构造某个对象，那么我们会使用变参模板。
+```cpp
+template <typename T,     // type of object to create
+          typename... Ts> // types of arguments to use
+void doSomeWork(Ts &&...params)
+{
+    // create local T object from params...
+}
+```
+
+上述伪代码有两种实现方式（Item 25（TODO link）会讲解 `std::forward`）。
+```cpp
+T localObject(std::forward<Ts>(params)...); // using parens
+T localObject{std::forward<Ts>(params)...}; // using braces
+```
+
+客户端这样使用这个方法：
+```cpp
+std::vector<int> v;
+doSomeWork<std::vector<int>>(10, 20);
+```
+
+`doSomeWork` 要使用哪种方式构造对象呢？`doSomeWork` 的作者不知道，只有使用的人知道。
+
+STL 的 `std::make_unique` `std::make_shared`（Item 21（TODO link））也面临了这个问题。他们的选择是使用小括号的方式构造对象，并在文档中说明他们的选择，这也是借口的一部分。
+
+## Things to Remember
+* Braced initialization is the most widely usable initialization syntax, it prevents narrowing conversions, and it’s immune to C++'s most vexing parse.
+* During constructor overload resolution, braced initializers are matched to `std::initializer_list` parameters if at all possible, even if other constructors offer seemingly better matches.
+* An example of where the choice between parentheses and braces can make a significant difference is creating a `std::vector<numeric type>` with two arguments.
+* Choosing between parentheses and braces for object creation inside templates can be challenging.
