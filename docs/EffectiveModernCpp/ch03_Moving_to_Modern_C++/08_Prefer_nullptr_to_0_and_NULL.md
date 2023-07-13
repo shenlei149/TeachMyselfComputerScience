@@ -96,3 +96,4 @@ auto result3 = lockAndCall(f3, f3m, nullptr); // fine
 
 ## Things to Remember
 * Prefer `nullptr` to `0` and `NULL`.
+* Avoid overloading on integral and pointer types.
