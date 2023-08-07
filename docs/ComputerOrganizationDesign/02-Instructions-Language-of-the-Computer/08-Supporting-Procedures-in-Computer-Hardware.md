@@ -104,6 +104,105 @@ jalr x0, 0(x1)      // branch back to calling routine
 
 比如主函数调用过程 A，参数 3 放到了 `x10` 中，并调用 `jal x1 A`，接着 A 调用 B，把参数 7 放到了 `x10` 中，并调用 `jal x1 B`。由于 A 还没有结束，所以这里有两个冲突，`x10` 中的数据变了，`x1` 中的返回地址也变了。
 
-一个方案和之前类似，把这些值保存在栈上。调用者负责将参数寄存器 `x10–x17` 和自己用的临时寄存器 `x5−x7, x28−x31` 的值放到栈上，调用完成之后恢复。被调用者负责将返回地址寄存器 `x1` 和 自己可能要用的非临时寄存器 `x8−x9, x18−x27` 的值保存起来。`sp` 维护根据入栈的寄存器数量调整指针，恢复栈的数据到寄存器之后，调整指针位置进行出栈操作。
+一个方案和之前类似，把这些值保存在栈上。调用者负责将参数寄存器 `x10–x17` 和自己用的临时寄存器 `x5−x7, x28−x31` 的值放到栈上，调用完成之后恢复。被调用者负责将返回地址寄存器 `x1` 和自己可能要用的非临时寄存器 `x8−x9, x18−x27` 的值保存起来。`sp` 维护根据入栈的寄存器数量调整指针，恢复栈的数据到寄存器之后，调整指针位置进行出栈操作。
 
 #### Compiling a Recursive C Procedure, Showing Nested Procedure Linking
+让我们看一个递归调用的例子。
+```c
+int fact(int n)
+{
+    if (n < 1)
+        return (1);
+    else
+        return (n * fact(n - 1));
+}
+```
+
+参数 `n` 放在了寄存器 `x10` 中，所以栈保存两个地址，存放 `n` 和返回地址。对于过程来说，汇编以过程名的标签开始：
+```c
+fact:
+addi sp, sp, -8     // adjust stack for 2 items
+sw x1, 4(sp)        // save the return address
+sw x10, 0(sp)       // save the argument n
+```
+
+当 `fact` 第一次被调用，`sw` 保存的是调用 `fact` 的函数地址。下面两条指令检查 `n < 1`，是的话顺序执行下去，否则跳转到 `L1`。
+```c
+addi x5, x10, -1    // x5 = n - 1
+bge x5, x0, L1      // if (n - 1) >= 0, go to L1
+```
+
+加下来就是 `n < 1` 的分支，返回 1：通过 0 和 1 相加得到。调整栈然后返回调用函数。
+```c
+addi x10, x0, 1     // return 1
+addi sp, sp, 8      // pop 2 items off stack
+jalr x0, 0(x1)      // return to caller
+```
+
+由于我们没有修改 `x1` 和 `x10` 的值，所以不必在退栈之前恢复它们的值。
+
+下一个分支是 `n >= 1`，需要将 `n` 减一然后调用 `fact`。
+```c
+L1: addi x10, x10, -1       // n >= 1: argument gets (n − 1)
+jal x1, fact                // call fact with (n − 1)
+```
+
+接着是这次调用 `fact` 返回了。我们把结果 `x10` 复制到 `x6`，然后从恢复 `x10`（参数 `n`）和 `x1`（调用这次 `fact` 的返回地址）。
+```c
+addi x6, x10, 0     // return from jal: move result of fact(n - 1) to x6:
+lw x10, 0(sp)       // restore argument n
+lw x1, 4(sp)        // restore the return address
+addi sp, sp, 8      // adjust stack pointer to pop 2 item
+```
+
+将 `n` 和 `fact(n-1)` 相乘，然后返回调用者。
+```c
+mul x10, x10, x6    // return n * fact (n − 1)
+jalr x0, 0(x1)      // return to the caller
+```
+
+C 语言中数据存放的位置取决于其类型（`type`）和存储分类（`storage class`）。后者分为自动变量（`automatic`）和静态变量（`static`）。函数外部的变量，和函数内部但是显式地 `static` 声明的都是静态变量，其余是自动变量。一些 RISC-V 编译器为了寻找静态变量方便，使用 `x3` 作为全局指针（`global pointer`），指向静态变量。
+
+### Allocating Space for New Data on the Stack
+还有一个复杂的问题是栈上有一些局部变量，无法放到寄存器中，比如数组和结构体。栈中保存寄存器内容和局部变量的部分称为过程帧（`procedure frame`）或者活动记录（`activation record`）。
+
+![](0802.png)
+
+一些编译器使用帧指针（`frame pointer`），即 `x8`，来指向过程帧的第一个字。随着调用函数，栈指针会变化，那么对同一个变量的位置可能随着处于过程的不同位置而不同，这使得过程更加难以理解。另一个方案是帧指针为本地存储提供稳定的基地址寄存器。不管是否有显式地帧指针，活动记录都会出现在栈上。本书通过避免在过程内部调整栈（只有进入函数或者退出的时候才会调整栈）来避免使用帧指针。
+
+### Allocating Space for New Data on the Heap
+除了自动变量之外，动态数据结构和静态数据也需要内存来存放。下图是运行 Linux 时 RISC-V 分配内存的方式。
+
+![](0803.png)
+
+栈从用户空间的高地址向低地址方向增长或减少。最底下是保留地址。然后是存放 RISC-V 机器码的代码段（`text segment`），然后是静态数据段，数组是固定长度的，放在静态数据段，而链表这样动态分配内存的数据放在动态数据段，通常称为堆（`heap`）。栈和堆相向而行，随着程序的运行此消彼长。
+
+C 语言中使用 `malloc()` 和 `free()` 显式地分配和释放内存。很多问题都是由于内存管理引起的。忘记释放内存会导致内存泄露，提前释放内存会导致悬垂指针，可能会访问到非预期的数据。
+
+下面是寄存器使用惯例。这里是优化通常情况的示例。对于大部分过程而言，八个参数寄存器，十二个保留寄存器和七个临时寄存器都够用了，而无需使用内存。
+
+![](0804.png)
+
+### 尾递归
+一些递归函数可以用迭代来实现。比如如下函数
+```c
+int sum(int n, int acc)
+{
+    if (n > 0)
+        return sum(n − 1, acc + n);
+    else
+        return acc;
+}
+```
+与前面的例子不同的是，这里的递归语句只调用函数自身，没有其他运算了。如果调用 `sum(3,0)`，会依次调用 `sum(2,3), sum(1,5), sum(0,6)`，最后直接返回结果 6。这个函数key使用循环实现，假定 `x10, x11` 存放 `n, acc`，结果放在 `x12` 中。
+```c
+sum:
+ble x10, x0, sum_exit       // go to sum_exit if n <= 0
+add x11, x11, x10           // add n to acc
+addi x10, x10, -1           // subtract 1 from n
+jal x0, sum                 // jump to sum
+
+sum_exit:
+addi x12, x11, 0            // return value acc
+jalr x0, 0(x1)              // return to caller
+```
