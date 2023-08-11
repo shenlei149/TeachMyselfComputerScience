@@ -4,3 +4,4 @@
   - [07 Distinguish between () and {} when creating objects](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/07_Distinguish_between_()_and_%7B%7D_when_creating_objects.md)
   - [08 Prefer nullptr to 0 and NULL](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/08_Prefer_nullptr_to_0_and_NULL.md)
   - [09 Prefer alias declarations to typedefs](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/09_Prefer_alias_declarations_to_typedefs.md)
+  - [10 Prefer scoped enums to unscoped enums](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/10_Prefer_scoped_enums_to_unscoped_enums.md)
