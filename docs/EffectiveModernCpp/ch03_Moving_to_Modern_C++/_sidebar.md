@@ -6,3 +6,4 @@
   - [09 Prefer alias declarations to typedefs](/EffectiveModernCpp/ch03_Moving_to_Modern_C%2B%2B/09_Prefer_alias_declarations_to_typedefs.md)
   - [10 Prefer scoped enums to unscoped enums](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/10_Prefer_scoped_enums_to_unscoped_enums.md)
   - [11 Prefer deleted functions to private undefined ones](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/11_Prefer_deleted_functions_to_private_undefined_ones.md)
+  - [12 Declare overriding functions override](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/12_Declare_overriding_functions_override.md)
