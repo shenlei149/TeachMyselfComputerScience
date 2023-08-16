@@ -165,6 +165,37 @@ Widget makeWidget();
 auto vals2 = makeWidget().data(); // copy values inside the Widget into vals2
 ```
 
+和上面分析一样，这里还是要拷贝数据。`makeWidget` 返回的是一个临时对象，马上就要销毁了，这时候拷贝 `std::vector` 的话完全是浪费，此时移动更好。不过 `data()` 返回的是左值，编译器应该生成拷贝的函数。（可能在某些场景下，一些编译器能优化，但是我们不应该依赖编译器。）
+
+正确的解法是 `Widget` 是右值对象调用 `data()` 时，返回也是右值。引用修饰就是这个目的。
+```cpp
+class Widget
+{
+public:
+    using DataType = std::vector<double>;
+
+    DataType &data() & // for lvalue Widgets, return lvalue
+    {
+        return values;
+    }
+    DataType data() && // for rvalue Widgets, return rvalue
+    {
+        return std::move(values);
+    }
+
+private:
+    DataType values;
+};
+```
+
+两个重载的返回类型是不同的。那么之前两种不同类型的对象调用 `data()` 函数会有不一样的行为。
+```cpp
+auto vals1 = w.data();            // calls lvalue overload for
+                                  // Widget::data, copy-constructs vals1
+auto vals2 = makeWidget().data(); // calls rvalue overload for
+                                  // Widget::data, move-constructs vals2
+```
+
 ## Things to Remember
 * Declare overriding functions `override`.
 * Member function reference qualifiers make it possible to treat lvalue and rvalue objects (`*this`) differently.
