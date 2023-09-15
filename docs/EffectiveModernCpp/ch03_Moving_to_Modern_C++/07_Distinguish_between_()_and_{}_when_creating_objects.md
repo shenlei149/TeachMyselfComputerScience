@@ -197,7 +197,7 @@ std::vector<int> v2{10, 20}; // use std::initializer_list ctor: create 2-element
 
 这里有两个问题需要探讨。
 
-第一个是作为类的作者，如果有一个多多个 `std::initializer_list` 参数的构造函数重载，那客户端可能看不到非 `std::initializer_list` 的构造函数了。这个设计要尽可能避免，也就是说 `std::vector` 的接口设计不是很好，容易让人犯错。如果一个类没有 `std::initializer_list` 的构造函数，客户端使用了大括号的方式调用非 `std::initializer_list` 的构造函数创建对象。当我们增加一个接受 `std::initializer_list` 参数的构造函数重载，一切都发生了变化。这个新的函数会几乎屏蔽其他构造函数。
+第一个是作为类的作者，如果有一个或多个 `std::initializer_list` 参数的构造函数重载，那客户端可能看不到非 `std::initializer_list` 的构造函数了。这个设计要尽可能避免，也就是说 `std::vector` 的接口设计不是很好，容易让人犯错。如果一个类没有 `std::initializer_list` 的构造函数，客户端使用了大括号的方式调用非 `std::initializer_list` 的构造函数创建对象。当我们增加一个接受 `std::initializer_list` 参数的构造函数重载，一切都发生了变化。这个新的函数会几乎屏蔽其他构造函数。
 
 第二个问题是我们应该使用哪种方式。各有优缺点，选定一个，保持一致就好。
 
@@ -225,7 +225,7 @@ doSomeWork<std::vector<int>>(10, 20);
 
 `doSomeWork` 要使用哪种方式构造对象呢？`doSomeWork` 的作者不知道，只有使用的人知道。
 
-STL 的 `std::make_unique` `std::make_shared`（Item 21（TODO link））也面临了这个问题。他们的选择是使用小括号的方式构造对象，并在文档中说明他们的选择，这也是借口的一部分。
+STL 的 `std::make_unique` `std::make_shared`（Item 21（TODO link））也面临了这个问题。他们的选择是使用小括号的方式构造对象，并在文档中说明他们的选择，这也是接口的一部分。
 
 ## Things to Remember
 * Braced initialization is the most widely usable initialization syntax, it prevents narrowing conversions, and it’s immune to C++'s most vexing parse.

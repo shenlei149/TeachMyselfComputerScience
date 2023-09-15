@@ -2,7 +2,7 @@
 
 ![](0401.png)
 
-输入设备（`input device`）和输出设备（`output device`）会在第五章和第六章详细说明，这里先简要看下全局。
+输入设备（`input device`）和输出设备（`output device`）会在第五章和第六章详细说明。这里先简要看下全局。
 
 ### Through the Looking Glass
 现在个人移动设备或者 PC 配的显示器往往使用 LCD （`liquid crystal display`）技术，薄，功耗低。
