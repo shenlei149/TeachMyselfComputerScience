@@ -9,3 +9,4 @@
   - [06 Logical Operations](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/06-Logical-Operations.md)
   - [07 Instructions for Making Decisions](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/07-Instructions-for-Making-Decisions.md)
   - [08 Supporting Procedures in Computer Hardware](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/08-Supporting-Procedures-in-Computer-Hardware.md)
+  - [09 Communicating with People](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/09-Communicating-with-People.md)

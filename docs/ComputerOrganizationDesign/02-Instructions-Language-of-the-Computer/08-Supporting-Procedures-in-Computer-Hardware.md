@@ -39,7 +39,7 @@ jal x0, Label   // unconditionally branch to Label
 
 历史原因，栈从高地址向低地址增长，所以通过减堆栈指针来入栈，增加堆栈指针实现出栈。
 
-#### Compiling a C Procedure That Doesn’t Call Another Procedure
+#### Compiling a C Procedure That Doesn't Call Another Procedure
 现在分析下面 C 代码编译成什么样的汇编代码。这个 C 代码来自 2.2 节。
 ```c
 int leaf_example (int g, int h, int i, int j)
