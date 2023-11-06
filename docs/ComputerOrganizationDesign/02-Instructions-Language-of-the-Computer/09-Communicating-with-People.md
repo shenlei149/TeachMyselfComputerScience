@@ -8,7 +8,7 @@ sb x12, 0(x11)  // Write byte to destination
 
 通常有三种方式表示字符串。1）以特殊的字符结尾，比如 C 语言中用 `\0` 结束；2）使用结构体，跟随字符串变量有一个长度变量；3）在字符串开头使用一定长度表示字符串长度，Java 就使用这种方式。
 
-### Compiling a String Copy Procedure, Showing How to Use C Strings
+#### Compiling a String Copy Procedure, Showing How to Use C Strings
 下面是 C 语言中经典的 `strcpy` 函数
 ```c
 void strcpy(char x[], char y[])
