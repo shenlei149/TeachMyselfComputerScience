@@ -12,3 +12,4 @@
   - [09 Communicating with People](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/09-Communicating-with-People.md)
   - [10 RISC-V Addressing for Wide Immediates and Addresses](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/10-RISC-V-Addressing-for-Wide-Immediates-and-Addresses.md)
   - [11 Parallelism and Instructions: Synchronization](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/11-Parallelism-and-Instructions-Synchronization.md)
+  - [12 Translating and Starting a Program](ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/12-Translating-and-Starting-a-Program.md)
