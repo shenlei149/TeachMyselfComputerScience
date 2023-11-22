@@ -13,3 +13,4 @@
   - [10 RISC-V Addressing for Wide Immediates and Addresses](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/10-RISC-V-Addressing-for-Wide-Immediates-and-Addresses.md)
   - [11 Parallelism and Instructions: Synchronization](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/11-Parallelism-and-Instructions-Synchronization.md)
   - [12 Translating and Starting a Program](ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/12-Translating-and-Starting-a-Program.md)
+  - [13 A C Sort Example to Put it All Together](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/13-A-C-Sort-Example-to-Put-it-All-Together.md)
