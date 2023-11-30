@@ -15,4 +15,3 @@
   - [12 Translating and Starting a Program](ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/12-Translating-and-Starting-a-Program.md)
   - [13 A C Sort Example to Put it All Together](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/13-A-C-Sort-Example-to-Put-it-All-Together.md)
   - [14 Arrays versus Pointers](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/14-Arrays-versus-Pointers.md)
-  - [15 Advanced Material: Compiling C and Interpreting Java](/ComputerOrganizationDesign/02-Instructions-Language-of-the-Computer/15-Advanced-Material-Compiling-C-and-Interpreting-Java.md)
