@@ -7,3 +7,4 @@
   - [10 Prefer scoped enums to unscoped enums](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/10_Prefer_scoped_enums_to_unscoped_enums.md)
   - [11 Prefer deleted functions to private undefined ones](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/11_Prefer_deleted_functions_to_private_undefined_ones.md)
   - [12 Declare overriding functions override](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/12_Declare_overriding_functions_override.md)
+  - [13 Prefer const_iterators to iterators](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/13_Prefer_const_iterators_to_iterators.md)
