@@ -8,3 +8,4 @@
   - [11 Prefer deleted functions to private undefined ones](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/11_Prefer_deleted_functions_to_private_undefined_ones.md)
   - [12 Declare overriding functions override](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/12_Declare_overriding_functions_override.md)
   - [13 Prefer const_iterators to iterators](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/13_Prefer_const_iterators_to_iterators.md)
+  - [14 Declare functions noexcept if they won't emit exceptions](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/14_Declare_functions_noexcept_if_they_wont_emit_exceptions.md)
