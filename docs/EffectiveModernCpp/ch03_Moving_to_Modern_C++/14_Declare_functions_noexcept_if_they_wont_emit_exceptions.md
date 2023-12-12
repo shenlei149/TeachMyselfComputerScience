@@ -61,6 +61,35 @@ struct pair
 
 对于一些函数，不抛异常是非常重要的，默认就是 `noexcept`。C++98 中释放内存（`operator delete` `operator delete[]`）和析构函数都不能抛出异常。C++11 从函数签名上加强了这一点，不管是用户定义或者是编译器合成的释放内存和析构函数默认都是 `noexcept` 的，不需要手动添加关键字（加了也没啥，不符合约定罢了）。析构函数不能隐式的是 `noexcept` 的情况就是类的成员变量（继承的成员变量以及它们内部的成员变量）明确的声明它们的析构函数不是 `noexcept` 的（`noexcept(false)`），非常罕见。STL 里面没有。如果这些类的实例传入 STL（放到容器或者使用算法），又抛出了异常，程序的行为是未定义的。
 
+一些类库设计者会区别宽契约（`wide contract`）和窄契约（`narrow contract`）。宽契约函数没有前置条件，不管程序状态如何，都能调用这些函数，对调用者传来的参数不做检查，同时也不会有未定义行为。
+
+反之，函数是窄契约。这些函数会预设前置条件，如果违反了这些前置条件，函数的行为是未定义的。
+
+如果实现了一个宽契约函数，且没有抛出异常，那么很自然的，应该加上 `noexcept` 关键字。但是对窄契约函数，就不能直接这么做了。比如一个函数 `f` 接受 `std::string` 类型的参数，自然实现下不抛出异常，那么按照建议应该声明为 `noexcept`。
+
+现在假定 `f` 有一个前置条件：`std::string` 的长度不超过 32 个字节，如果超过了这个长度，函数的行为是未定义的。`f` 没有检查这个预设条件的义务，它假定参数是满足条件的（这个由调用者来保证）。即使这样，声明为 `noexcept` 也是合理的。
+```cpp
+void f(const std::string &s) noexcept; // precondition: s.length() <= 32
+```
+
+假定现在 `f` 开始检查这个前置条件了。检查不是必须的，但是也没人禁止我们这么做，并且这么做很有用，比如 debug 一个抛出异常的程序比 debug 出现未定义行为的程序要容易得多。如果做检查呢？最简单的方式就是抛出异常。不过这和之前的声明 `noexcept` 相冲突。基于这个原因，设计者往往只将宽契约函数声明为 `noexcept`。
+
+最后，举例说明编译器检查实现和异常说明的一致性。下面的函数完全是正确的。
+```cpp
+void setup(); // functions defined elsewhere
+void cleanup();
+void doWork() noexcept
+{
+    setup();   // set up work to be done
+               // do the actual work
+    cleanup(); // perform cleanup actions
+}
+```
+
+`doWork` 声明为 `noexcept`，但是调用了非 `noexcept` 的函数 `setup, cleanup`。这一点看似有点矛盾，或许在文档中写明了它们不会抛出异常。不抛出异常的函数没有声明为 `noexcept` 也有其合理性。比如是一个 C 库函数（即使一些 C 标准库函数移动到了 `std` 空间下，但是仍旧没有声明为 `noexcept`，比如 `std::strlen`，或者是 C++98 标准实现的函数，还没来得及更新到新标准。
+
+正是由于这些合理的原因，一个 `noexcept` 可能调用非 `noexcept` 的函数，C++ 也就允许这样的代码存在，进而编译器通常也不会报告警告信息。
+
 ## Things to Remember
 * `noexcept` is part of a function's interface, and that means that callers may depend on it.
 * `noexcept` functions are more optimizable than non-`noexcept` functions.
