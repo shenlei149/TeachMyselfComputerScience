@@ -9,3 +9,4 @@
   - [12 Declare overriding functions override](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/12_Declare_overriding_functions_override.md)
   - [13 Prefer const_iterators to iterators](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/13_Prefer_const_iterators_to_iterators.md)
   - [14 Declare functions noexcept if they won't emit exceptions](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/14_Declare_functions_noexcept_if_they_wont_emit_exceptions.md)
+  - [15 Use constexpr whenever possible](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/15_Use_constexpr_whenever_possible.md)
