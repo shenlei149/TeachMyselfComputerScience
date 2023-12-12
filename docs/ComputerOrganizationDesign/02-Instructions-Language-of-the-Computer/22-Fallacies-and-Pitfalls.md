@@ -16,7 +16,7 @@ Intel x86 的部分功能是可以修改接下来的指令的执行的前缀。�
 
 即使手写汇编更快，那么编写和 debug 所需要的时间也要长很多，而且可移植性和可维护性变差。还有一个问题是，代码写好之后，可能会变得很流行，这样的话，生存周期可能要比想象的长很多。那么就需要不停的维护以适应更新的操作系统和硬件。写高级语言，这样编译器可以使之运行在更新的硬件上，更容易维护，使之更容易运行在更多指令集硬件上。
 
-*Fallacy: The importance of commercial binary compatibility means successful instruction sets don’t change.*
+*Fallacy: The importance of commercial binary compatibility means successful instruction sets don't change.*
 
 *谬论：商业软件兼容性意味着成功的指令集不会变化。*
 
