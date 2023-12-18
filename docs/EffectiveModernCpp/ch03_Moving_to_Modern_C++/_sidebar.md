@@ -11,3 +11,4 @@
   - [14 Declare functions noexcept if they won't emit exceptions](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/14_Declare_functions_noexcept_if_they_wont_emit_exceptions.md)
   - [15 Use constexpr whenever possible](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/15_Use_constexpr_whenever_possible.md)
   - [16 Make const member functions thread safe](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/16_Make_const_member_functions_thread_safe.md)
+  - [17 Understand special member function generation](/EffectiveModernCpp/ch03_Moving_to_Modern_C++/17_Understand_special_member_function_generation.md)
