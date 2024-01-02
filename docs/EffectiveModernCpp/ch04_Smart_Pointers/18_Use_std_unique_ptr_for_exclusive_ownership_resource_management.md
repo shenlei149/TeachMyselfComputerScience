@@ -122,3 +122,8 @@ makeInvestment(Ts &&...params);         // of function pointer!
 std::shared_ptr<Investment> sp = makeInvestment(arguments);
 ```
 这也是 `std::unique_ptr` 适合作为工厂函数返回类型的一个关键原因。工厂函数不知道调用者想要排他性的所有权还是共享性的所有权。返回 `std::unique_ptr`，调用者可以根据需要自行选择。
+
+## Things to Remembe
+* `std::unique_ptr` is a small, fast, move-only smart pointer for managing resources with exclusive-ownership semantics.
+* By default, resource destruction takes place via delete, but custom deleters can be specified. Stateful deleters and function pointers as deleters increase the size of `std::unique_ptr` objects.
+* Converting a `std::unique_ptr` to a `std::shared_ptr` is easy.
