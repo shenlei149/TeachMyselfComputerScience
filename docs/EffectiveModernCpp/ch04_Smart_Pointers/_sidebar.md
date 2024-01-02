@@ -2,3 +2,4 @@
 - [Effective Modern C++](/EffectiveModernCpp/)
 - [04 Smart Pointers](/EffectiveModernCpp/ch04_Smart_Pointers/)
   - [18 Use std::unique_ptr for exclusive-ownership resource management](/EffectiveModernCpp/ch04_Smart_Pointers/18_Use_std_unique_ptr_for_exclusive_ownership_resource_management.md)
+  - [19 Use std::shared_ptr for shared-ownership resource management](/EffectiveModernCpp/ch04_Smart_Pointers/19_Use_std_shared_ptr_for_shared_ownership_resource_management.md)
