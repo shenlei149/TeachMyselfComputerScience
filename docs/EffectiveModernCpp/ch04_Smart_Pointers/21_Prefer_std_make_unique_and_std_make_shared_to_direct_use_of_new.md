@@ -59,5 +59,96 @@ processWidget(std::make_shared<Widget>(), // no potential resource leak
 ```cpp
 std::shared_ptr<Widget> spw(new Widget);
 ```
+这段代码涉及一次内存分配，但是执行了两次。第一次分配是 `new` `Widget`，第二次是 `std::shared_ptr` 的构造函数中分配内存存放控制块。
+
+如果使用 `make`
+```cpp
+auto spw = std::make_shared<Widget>();
+```
+那么只进行一次内存分配，存放 `Widget` 和控制块，程序执行的更快。另外，`std::make_shared` 可以消除额外分配控制块的记录信息，使得占用内存更小。
+
+针对 `std::make_shared` 的分析对 `std::allocate_shared` 也有效。
+
+对使用 `new` 还是 `make` 的争论一直都有。这里是更倾向于使用 `make`，对于一些场景，不得不使用 `new`。
+
+比如，`make` 函数不支持自定义删除器，但 `std::unique_ptr` `std::shared_ptr` 的构造函数支持。假定有一个自定义的删除器
+```cpp
+auto widgetDeleter = [](Widget *pw) {};
+```
+我们就不得不 `new` 对象然后构造智能指针。
+```cpp
+std::unique_ptr<Widget, decltype(widgetDeleter)>
+    upw(new Widget, widgetDeleter);
+std::shared_ptr<Widget> spw(new Widget, widgetDeleter);
+```
+第二个限制是由于语法限制导致的。之前分析过，如果构造函数有带 `std::initializer_list` 的，也有不带的，那么当使用大括号构造对象时，倾向于使用带 `std::initializer_list` 的构造函数，而使用小括号构造对象的时候，倾向于使用不带 `std::initializer_list` 的构造函数。`make` 函数完美转发参数给构造函数，但是不知道该使用哪一种括号构造对象。对于 `std::vector`，这个差异很大。
+```cpp
+auto upv = std::make_unique<std::vector<int>>(10, 20);
+auto spv = std::make_shared<std::vector<int>>(10, 20);
+```
+是 10 个元素，每个都是 20？还是只有两个元素，分别是 10,20？
+
+结果是确定的。由于 `make` 实现使用小括号构造对象，所以是 10 个 20。如果想使用 `std::initializer_list` 构造两个元素的对象，那么不得不使用 `new`。`make` 函数需要有完美转发初始化列表的能力，但是正如 Item 30（TODO link）所说，初始化列表不能被完美转发。不过 Item 30 也给出了一个变通办法：使用 `auto` 类型推导构造一个 `std::initializer_list`，然后把这个对象传递给 `make`。
+```cpp
+// create std::initializer_list
+auto initList = {10, 20};
+
+// create std::vector using std::initializer_list ctor
+auto spv = std::make_shared<std::vector<int>>(initList);
+```
+对于 `std::unique_ptr`，其 `make` 函数只有这两个问题。不过对于 `std::shared_ptr` 和它的 `make` 函数，还有两个问题。
+
+一些类自定义了 `operator new` 和 `operator delete`，那么全局性的分配和释放内存的机制对这些就不再有效了。通常，设计这些的目的是更精准的控制内存大小。比如 `Widget` 自定义了 `operator new` 和 `operator delete`，精确地分配和释放 `sizeof(Widget)` 大小的内存。此时，通过 `std::allocate_shared` 提供的 `std::shared_ptr` 对自定义分配器的支持就不能正常工作了，因为 `std::allocate_shared` 需要分配的大小比 `Widget` 的大小少大一些（控制块）。
+
+`std::make_shared` 的速度优势在于只分配一次内存。当引用计数为零的时候，对象应该被销毁。但是直到控制块也不再需要的时候，才能释放整块内存。
+
+控制块还包括 `std::weak_ptr` 要用到的次级引用计数，表示有几个 `std::weak_ptr` 还在指向当前对象。`std::weak_ptr` 的 `expired()` 函数需要检查引用计数来确定是否还有 `std::shared_ptr` 指向当前对象。
+
+只要 `std::weak_ptr` 还存在，那么控制块就必须要存在，那么整块内存就不能被释放。因此，通过 `make` 分配的内存，需要在最后一个 `std::shared_ptr` 和最后一个 `std::weak_ptr` 都不再指向当前对象时才能被释放。
+
+如果对象很大，而且最后一个 `std::shared_ptr` 和最后一个 `std::weak_ptr` 被销毁之间的时间差很大，那么销毁对象和释放内存之间就会有延迟。
+```cpp
+class ReallyBigType
+{
+};
+
+auto pBigObj =                         // create very large
+    std::make_shared<ReallyBigType>(); // object via std::make_shared
+
+// create std::shared_ptrs and std::weak_ptrs to
+// large object, use them to work with it
+
+// final std::shared_ptr to object destroyed here,
+// but std::weak_ptrs to it remain
+
+// during this period, memory formerly occupied
+// by large object remains allocated
+
+// final std::weak_ptr to object destroyed here;
+// memory for control block and object is released
+```
+
+如果使用 `new` 构造对象，那么当最后一个 ` std::shared_ptr` 被析构的时候，对象会被析构，同时，内存也会被释放。
+```cpp
+class ReallyBigType
+{
+};
+
+// create very large object via new
+std::shared_ptr<ReallyBigType> pBigObj(new ReallyBigType);
+
+// as before, create std::shared_ptrs and
+// std::weak_ptrs to object, use them with it
+
+// final std::shared_ptr to object destroyed here,
+// but std::weak_ptrs to it remain;
+// memory for object is deallocated
+
+// during this period, only memory for the
+// control block remains allocated
+
+// final std::weak_ptr to object destroyed here;
+// memory for control block is released
+```
 
 ##
