@@ -151,4 +151,36 @@ std::shared_ptr<ReallyBigType> pBigObj(new ReallyBigType);
 // memory for control block is released
 ```
 
-##
+如果无法使用 `std::make_shared` 又想异常安全，最好的方式是在一个不做其他事情的语句中，使用 `new` 构造对象然后立即传递给智能指针的构造函数。这样编译器无法在 `new` 对象和构造智能指针之间插入可能抛出异常的语句。
+```cpp
+void processWidget(std::shared_ptr<Widget> spw, // as before
+                   int priority);
+void cusDel(Widget *ptr); // custom deleter
+
+processWidget(                                   // as before, potential
+    std::shared_ptr<Widget>(new Widget, cusDel), // resource leak!
+    computePriority());
+
+std::shared_ptr<Widget> spw(new Widget, cusDel);
+processWidget(spw, computePriority()); // correct, but not optimal; see below
+```
+`std::shared_ptr` 获取了传递给它的裸指针的所有权，即使其构造函数抛出异常（比如无法分配控制块的内存），还是可以保证在 `new Widget` 上调用 `cusDel` 释放内存。
+
+这里有一个很小的性能问题，在异常不安全的版本，我们传递了右值，但是在异常安全的版本中，我们传递了左值。
+```cpp
+processWidget(
+    std::shared_ptr<Widget>(new Widget, cusDel), // arg is rvalue
+    computePriority());
+
+processWidget(spw, computePriority()); // arg is lvalue
+```
+`processWidget` 的 `std::shared_ptr` 参数是按值传递的。如果传递的是右值，涉及移动操作；如果传递左值，只能拷贝。对于 `std::shared_ptr` 而言，这两者是有差距的，拷贝需要原子操作来自增引用计数，而移动就不需要了。解决这个性能问题的方式是对 `spw` 使用 `std::move` 将其变成右值（参考 Item 23（TODO link））。
+```cpp
+processWidget(std::move(spw),     // both efficient and
+              computePriority()); // exception safe
+```
+
+## Things to Remember
+* Compared to direct use of `new`, `make` functions eliminate source code duplication, improve exception safety, and, for `std::make_shared` and `std::allocate_shared`, generate code that's smaller and faster.
+* Situations where use of `make` functions is inappropriate include the need to specify custom deleters and a desire to pass braced initializers.
+* For `std::shared_ptr`, additional situations where `make` functions may be ill-advised include (1) classes with custom memory management and (2) systems with memory concerns, very large objects, and `std::weak_ptr` that outlive the corresponding `std::shared_ptr`.
