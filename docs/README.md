@@ -1,4 +1,4 @@
-> An awesome project.
+> If all you can do today is take one step, then take one step.
 
 ## The Elements of Computing Systems
 完整的书名是 The Elements of Computing Systems: Building a Modern Computer from First Principles, By Noam Nisan and Shimon Schocken (MIT Press)
