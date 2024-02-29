@@ -6,4 +6,5 @@
 - [C++](/Cpp/)
 - [C++ Concurrency](/CppConcurrency/)
 - [人](/People/)
+- [值得一读](/WorthReading/)
 - [面试题](/InterviewQuestions/)
