@@ -2,6 +2,7 @@
 - [TAOCP](/TAOCP/)
 - [Computer Organization and Design (RISC-V)](/ComputerOrganizationDesign/)
 - [Effective Modern C++](/EffectiveModernCpp/)
+- [The Art of Writing Efficient Programs](/ArtWritingEfficientPrograms/)
 - [Database](/Database/)
 - [C++](/Cpp/)
 - [C++ Concurrency](/CppConcurrency/)
