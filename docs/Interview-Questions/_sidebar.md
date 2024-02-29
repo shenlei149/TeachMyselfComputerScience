@@ -1,6 +1,0 @@
-- [Home](/)
-- [面试题](/Interview-Questions/)
-  - [两个字符串是否由同样的字符组成](/Interview-Questions/Two-String-Permutation.md)
-  - [100 亿条 URL 去重](/Interview-Questions/10B-URL.md)
-  - [不使用加操作实现加法](/Interview-Questions/Add-without-Plus.md)
-  - [不使用额外的数据结构对栈元素进行排序](/Interview-Questions/Sort-Stack.md)
