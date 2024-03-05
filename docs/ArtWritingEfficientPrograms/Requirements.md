@@ -3,6 +3,7 @@
 ### 实验环境
 硬件：
 ```
+<!-- Azure VM -->
 Architecture:            x86_64
   CPU op-mode(s):        32-bit, 64-bit
   Address sizes:         46 bits physical, 57 bits virtual
@@ -39,6 +40,30 @@ https://github.com/google/benchmark
 * `-Wall` - 打开所有警告，帮助我们提升代码质量
 * `-pedantic` - 严格限制仅使用 ISO C++ 标准
 * `-o` - 指定输出的名字
+
+### perf profiler
+大部分 Linux 平台自带的分析工具。最简单的使用方式是获取一个程序运行时的统计信息。
+```sh
+sudo perf stat ./SubStringSort
+Sort time: 154ms (621159 comparisons)
+
+ Performance counter stats for './SubStringSort':
+
+            155.82 msec task-clock                       #    0.967 CPUs utilized          
+                 3      context-switches                 #   19.253 /sec                   
+                 1      cpu-migrations                   #    6.418 /sec                   
+               254      page-faults                      #    1.630 K/sec                  
+   <not supported>      cycles                                                      
+   <not supported>      instructions                                                
+   <not supported>      branches                                                    
+   <not supported>      branch-misses                                               
+
+       0.161170670 seconds time elapsed
+
+       0.156259000 seconds user
+       0.000000000 seconds sys
+```
+从中可以看到耗时、上下文切换次数等信息，由于使用环境是 Azure VM，很多统计信息需要配置 hypervisor。那么我们能看到哪些统计信息呢？可以通过命令 `perf list` 查看，当运行 `perf stat` 时，可以使用参数 `-e` 的方式自定义信息。
 
 ### google-perftools
 https://github.com/gperftools/gperftools
