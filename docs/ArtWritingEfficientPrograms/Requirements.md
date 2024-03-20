@@ -3,15 +3,15 @@
 ### 实验环境
 硬件：
 ```
-<!-- Azure VM -->
+<!-- wsl2 -->
 Architecture:            x86_64
   CPU op-mode(s):        32-bit, 64-bit
-  Address sizes:         46 bits physical, 57 bits virtual
+  Address sizes:         39 bits physical, 48 bits virtual
   Byte Order:            Little Endian
-CPU(s):                  2
-  On-line CPU(s) list:   0,1
+CPU(s):                  12
+  On-line CPU(s) list:   0-11
 Vendor ID:               GenuineIntel
-  Model name:            Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz
+  Model name:            Intel(R) Core(TM) i5-10500 CPU @ 3.10GHz
 ```
 
 操作系统：
@@ -21,7 +21,7 @@ Vendor ID:               GenuineIntel
 * g++: 12.2
 * perf: 6.1.76
 * google-perftools: 2.10
-* google benchmark: commit 1576991177ba97a4b2ff6c45950f1fa6e9aa678c
+* google benchmark: commit 06b4a070156a9333549468e67923a3a16c8f541b
 
 google benchmark 是在 [github](https://github.com/google/benchmark) 下载安装，其他软件均为 apt 自带。
 
@@ -45,25 +45,25 @@ https://github.com/google/benchmark
 大部分 Linux 平台自带的分析工具。最简单的使用方式是获取一个程序运行时的统计信息。
 ```sh
 sudo perf stat ./SubStringSort
-Sort time: 154ms (621159 comparisons)
+Sort time: 132ms (621229 comparisons)
 
  Performance counter stats for './SubStringSort':
 
-            155.82 msec task-clock                       #    0.967 CPUs utilized          
-                 3      context-switches                 #   19.253 /sec                   
-                 1      cpu-migrations                   #    6.418 /sec                   
-               254      page-faults                      #    1.630 K/sec                  
-   <not supported>      cycles                                                      
-   <not supported>      instructions                                                
-   <not supported>      branches                                                    
-   <not supported>      branch-misses                                               
+            134.01 msec task-clock                       #    0.996 CPUs utilized          
+                 0      context-switches                 #    0.000 /sec                   
+                 0      cpu-migrations                   #    0.000 /sec                   
+               254      page-faults                      #    1.895 K/sec                  
+       555,694,227      cycles                           #    4.147 GHz                    
+     2,528,055,088      instructions                     #    4.55  insn per cycle         
+       505,616,545      branches                         #    3.773 G/sec                  
+           822,257      branch-misses                    #    0.16% of all branches        
 
-       0.161170670 seconds time elapsed
+       0.134495601 seconds time elapsed
 
-       0.156259000 seconds user
+       0.134588000 seconds user
        0.000000000 seconds sys
 ```
-从中可以看到耗时、上下文切换次数等信息，由于使用环境是 Azure VM，很多统计信息需要配置 hypervisor。那么我们能看到哪些统计信息呢？可以通过命令 `perf list` 查看，当运行 `perf stat` 时，可以使用参数 `-e` 的方式自定义信息。
+从中可以看到耗时、上下文切换次数等信息。那么我们能看到哪些统计信息呢？可以通过命令 `perf list` 查看，当运行 `perf stat` 时，可以使用参数 `-e` 的方式自定义信息。
 
 ### google-perftools
 https://github.com/gperftools/gperftools
