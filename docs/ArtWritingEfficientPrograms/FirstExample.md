@@ -33,7 +33,7 @@ compare(const char *s1, const char *s2, unsigned int l)
 ```
 程序输出如下
 ```
-Sort time: 194ms (621197 comparisons)
+Sort time: 226ms (621229 comparisons)
 ```
 在怎么优化之前，需要先问两个问题。
 1. 需要优化吗？
@@ -98,10 +98,10 @@ compare(const char *s1, const char *s2)
 ```
 运行结果如下，确实快了不少。书中运行结果是变慢了很多，约两倍。
 ```
-Sort time: 155ms (621159 comparisons)
+Sort time: 165ms (621229 comparisons)
 ```
-如果将 `unsigned int` 修改成 `int`，运行耗时不变。书中运行结果是这个版本运行最快，比原始版本快 20% 多。
+如果将 `unsigned int` 修改成 `int`，又快了不少。
 ```
-Sort time: 155ms (621197 comparisons)
+Sort time: 134ms (621229 comparisons)
 ```
 这两组实验的运行结果和书上不一样。这里的结果更符合直觉，也符合我对 CPU 的认知。TODO 增加书中第三章 CPU 的描述，看书中如何解释反直觉的问题，又如何解释这里的运行结果。
